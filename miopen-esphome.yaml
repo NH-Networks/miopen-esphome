@@ -39,22 +39,17 @@ logger:
 
 # ── Home Assistant native API (replaces MQTT) ────────────────
 api:
-  encryption:
-    key: !secret api_encryption_key
+
 
 # ── OTA ──────────────────────────────────────────────────────
 ota:
-  - platform: esphome
-    password: !secret ota_password
+
 
 # ── Built-in web server ──────────────────────────────────────
 web_server:
   port: 80
   version: 3
-  auth:
-    username: admin
-    password: !secret web_password
-  ota: true
+
 
 # ── External component ───────────────────────────────────────
 external_components:
@@ -94,6 +89,7 @@ iohomecontrol:
 
   # Pairing & Discovery UI
   last_addr_sensor:
+    id: iohc_gw_last_addr
     name: "Laatste adres"
     icon: mdi:magnify
 

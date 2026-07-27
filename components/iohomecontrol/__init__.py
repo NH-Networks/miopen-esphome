@@ -175,6 +175,7 @@ async def to_code(config):
     "iohomecontrol.scan",
     ScanAction,
     cv.Schema({cv.GenerateID(): cv.use_id(IohcGatewayComponent)}),
+    synchronous=True,
 )
 async def scan_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -189,6 +190,7 @@ async def scan_action_to_code(config, action_id, template_arg, args):
         cv.GenerateID(): cv.use_id(IohcGatewayComponent),
         cv.Required(CONF_TARGET): cv.templatable(cv.string),
     }),
+    synchronous=True,
 )
 async def add_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -205,6 +207,7 @@ async def add_action_to_code(config, action_id, template_arg, args):
         cv.GenerateID(): cv.use_id(IohcGatewayComponent),
         cv.Required(CONF_TARGET): cv.templatable(cv.string),
     }),
+    synchronous=True,
 )
 async def remove_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -221,6 +224,7 @@ async def remove_action_to_code(config, action_id, template_arg, args):
         cv.GenerateID(): cv.use_id(IohcGatewayComponent),
         cv.Required(CONF_NAME): cv.templatable(cv.string),
     }),
+    synchronous=True,
 )
 async def new_remote_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -234,6 +238,7 @@ async def new_remote_action_to_code(config, action_id, template_arg, args):
     "iohomecontrol.reload",
     ReloadAction,
     cv.Schema({cv.GenerateID(): cv.use_id(IohcGatewayComponent)}),
+    synchronous=True,
 )
 async def reload_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
