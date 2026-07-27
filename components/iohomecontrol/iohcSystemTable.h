@@ -1,0 +1,40 @@
+#ifndef IOHC_SYSTEMTABLE_H
+#define IOHC_SYSTEMTABLE_H
+
+#include <map>
+#include <string>
+#include "iohcObject.h"
+
+#define IOHC_SYS_TABLE  "/sysTable.json"
+
+namespace IOHC {
+    class iohcSystemTable {
+        public:
+            using Objects = std::map<std::string, iohcObject *>;
+
+            static iohcSystemTable *getInstance();
+            virtual ~iohcSystemTable();
+            
+            bool addObject(address node, address backbone, uint8_t actuator[2], uint8_t manufacturer, uint8_t flags);
+            bool addObject(iohcObject *obj);
+            bool addObject(std::string key, std::string serialized);
+
+            bool empty();
+            uint8_t size();
+            void clear();
+            inline Objects::iterator begin();
+            inline Objects::iterator end();
+            bool save(bool force = false);
+            void dump1W();
+            void dump2W();
+
+        private:
+            iohcSystemTable();
+            bool load();
+            bool changed = false;
+
+            static iohcSystemTable *_iohcSystemTable;
+            Objects _objects;
+    };
+}
+#endif

@@ -1,0 +1,32 @@
+#ifndef IOHC_BLIND_POSITION_H
+#define IOHC_BLIND_POSITION_H
+
+#include <stdint.h>
+
+namespace IOHC {
+    class BlindPosition {
+    public:
+        explicit BlindPosition(uint32_t travelTimeSec = 0);
+
+        void setTravelTime(uint32_t sec);
+        uint32_t getTravelTime() const;
+
+        void startOpening();
+        void startClosing();
+        void stop();
+        void update();
+
+        float getPosition() const;
+        bool isMoving() const;
+        void setPosition(float pos);
+
+    private:
+        enum class State { Idle, Opening, Closing };
+        State state;
+        uint32_t travelTime;
+        uint64_t lastUpdateUs;
+        float position;
+    };
+}
+
+#endif

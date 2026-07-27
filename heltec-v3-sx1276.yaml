@@ -1,0 +1,121 @@
+# ==============================================================
+# ESPHome template — Heltec V2 / V3 + SX1276 868 MHz
+# io-homecontrol gateway (Somfy / Velux 1W)
+# ==============================================================
+
+esphome:
+  name: iohc-heltec
+  friendly_name: "Heltec io-homecontrol Gateway"
+  platformio_options:
+    build_flags:
+      - "-DESP32"
+      - "-DHELTEC"
+      - "-DRADIO_SX127X"
+
+esp32:
+  board: heltec_wifi_lora_32_V2
+  framework:
+    type: arduino
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "heltec-iohc-fallback"
+    password: !secret ap_password
+
+captive_portal:
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+web_server:
+  port: 80
+  version: 3
+  auth:
+    username: admin
+    password: !secret web_password
+
+external_components:
+  - source: github://NH-Networks/miopen-esphome
+    components: [iohomecontrol]
+
+iohomecontrol:
+  id: iohc_gw
+  sck_pin: 5
+  miso_pin: 19
+  mosi_pin: 27
+  nss_pin: 18
+  reset_pin: 14
+  dio0_pin: 26
+  dio1_pin: 35
+  frequency: 868950000
+  devices_file: "/1W.json"
+
+  rssi_sensor:
+    name: "Gateway RSSI"
+  rx_counter:
+    name: "Frames ontvangen"
+  tx_counter:
+    name: "Frames verzonden"
+  status_sensor:
+    name: "Gateway status"
+  last_addr_sensor:
+    id: last_addr_sensor
+    name: "Laatste gehoord adres"
+  pending_sensor:
+    name: "Scherm in pair mode"
+
+  scan_button:
+    id: scan_btn
+    name: "Scan"
+  new_remote_button:
+    id: new_remote_btn
+    name: "Nieuw remote"
+  add_button:
+    id: add_btn
+    name: "Koppel scherm"
+  remove_button:
+    name: "Ontkoppel scherm"
+  reload_button:
+    name: "Herlaad 1W.json"
+
+text:
+  - platform: template
+    id: device_name_input
+    name: "Scherm naam"
+    mode: text
+    optimistic: true
+    on_value:
+      then:
+        - lambda: 'id(iohc_gw).set_device_name(x.c_str());'
+
+  - platform: template
+    id: target_device_input
+    name: "Doel scherm ID"
+    mode: text
+    optimistic: true
+    on_value:
+      then:
+        - lambda: 'id(iohc_gw).set_target_device(x.c_str());'
+
+button:
+  - platform: template
+    name: "Gebruik laatste adres als doel"
+    on_press:
+      then:
+        - text.set:
+            id: target_device_input
+            value: !lambda 'return id(last_addr_sensor).state;'
+
+time:
+  - platform: homeassistant
+    id: ha_time

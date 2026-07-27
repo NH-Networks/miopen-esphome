@@ -1,0 +1,160 @@
+# ============================================================
+# iohomecontrol - LilyGO T3-S3 V1.2
+# ESPHome config — native API, no MQTT
+# ============================================================
+
+esphome:
+  name: iohomecontrol
+  friendly_name: io-homecontrol Gateway
+  platformio_options:
+    build_flags:
+      - "-DESP32"
+      - "-DRADIO_SX127X"
+      - "-DARDUINO_USB_MODE=1"
+      - "-DARDUINO_USB_CDC_ON_BOOT=1"
+  on_boot:
+    priority: 600
+    then:
+      - logger.log: "io-homecontrol gateway booting"
+
+# ── Board ────────────────────────────────────────────────────
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: arduino
+
+# ── WiFi ─────────────────────────────────────────────────────
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "iohomecontrol"
+    password: !secret ap_password
+
+captive_portal:
+
+# ── Logging ──────────────────────────────────────────────────
+logger:
+  level: INFO
+
+# ── Home Assistant native API (replaces MQTT) ────────────────
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+# ── OTA ──────────────────────────────────────────────────────
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# ── Built-in web server ──────────────────────────────────────
+web_server:
+  port: 80
+  version: 3
+  auth:
+    username: admin
+    password: !secret web_password
+  ota: true
+
+# ── External component ───────────────────────────────────────
+external_components:
+  - source: github://NH-Networks/miopen-esphome
+    components: [iohomecontrol]
+
+# ── iohomecontrol gateway ────────────────────────────────────
+iohomecontrol:
+  id: iohc_gw
+  sck_pin: 5
+  miso_pin: 3
+  mosi_pin: 6
+  nss_pin: 7
+  reset_pin: 8
+  dio0_pin: 33
+  dio1_pin: 34
+  frequency: 868950000
+  devices_file: "/1W.json"
+
+  # Diagnostic sensors
+  rssi_sensor:
+    name: "Gateway RSSI"
+    unit_of_measurement: "dBm"
+    icon: mdi:signal
+
+  rx_counter:
+    name: "Frames ontvangen"
+    icon: mdi:radio-tower
+
+  tx_counter:
+    name: "Frames verzonden"
+    icon: mdi:send
+
+  status_sensor:
+    name: "Gateway status"
+    icon: mdi:information-outline
+
+  # Pairing & Discovery UI
+  last_addr_sensor:
+    name: "Laatste adres"
+    icon: mdi:magnify
+
+  pending_sensor:
+    name: "Scherm in pair mode"
+    icon: mdi:link-variant
+
+  scan_button:
+    name: "Scan (luister naar schermen)"
+    icon: mdi:magnify-scan
+
+  new_remote_button:
+    name: "Nieuw virtueel remote aanmaken"
+    icon: mdi:remote
+
+  add_button:
+    name: "Koppel scherm"
+    icon: mdi:link-variant-plus
+
+  remove_button:
+    name: "Ontkoppel scherm"
+    icon: mdi:link-variant-remove
+
+  reload_button:
+    name: "Herlaad 1W.json"
+    icon: mdi:reload
+
+# ── Text inputs ────────────────────────────────────────────────
+text:
+  - platform: template
+    id: device_name_input
+    name: "Scherm naam"
+    icon: mdi:tag-text
+    mode: text
+    optimistic: true
+    initial_value: ""
+    on_value:
+      then:
+        - lambda: 'id(iohc_gw).set_device_name(x.c_str());'
+
+  - platform: template
+    id: target_device_input
+    name: "Doel scherm ID"
+    icon: mdi:identifier
+    mode: text
+    optimistic: true
+    initial_value: ""
+    on_value:
+      then:
+        - lambda: 'id(iohc_gw).set_target_device(x.c_str());'
+
+button:
+  - platform: template
+    name: "Gebruik laatste adres als doel"
+    icon: mdi:arrow-down-bold
+    on_press:
+      then:
+        - text.set:
+            id: target_device_input
+            value: !lambda 'return id(iohc_gw_last_addr).state;'
+
+time:
+  - platform: homeassistant
+    id: ha_time
