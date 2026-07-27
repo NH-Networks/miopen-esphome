@@ -1,3 +1,19 @@
+/*
+   Copyright (c) 2024. CRIDP https://github.com/cridp
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+           http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+ */
+
 #ifndef IOHC_RADIO_H
 #define IOHC_RADIO_H
 
@@ -15,15 +31,26 @@
 #if defined(RADIO_SX127X)
         #include "SX1276Helpers.h"
 #endif
+#if defined(RADIO_SX126X)
+        #include "SX126xHelpers.h"
+#endif
 #if defined(ESP32)
     #include "TickerUsESP32.h"
 #endif
 
-#define SM_GRANULARITY_US               130ULL
-#define SM_GRANULARITY_MS               1
-#define SM_PREAMBLE_RECOVERY_TIMEOUT_US 1378
-#define DEFAULT_SCAN_INTERVAL_US        13520
+#define SM_GRANULARITY_US              1000ULL  // Keep ESP timer load low; DIO packet/sync events are interrupt-driven
+#define SM_GRANULARITY_MS               1       // Ticker function frequency in uS
+#define SM_PREAMBLE_RECOVERY_TIMEOUT_US 15000   // Keep channel locked long enough for the io-homecontrol preamble
+#define DEFAULT_SCAN_INTERVAL_US        13520   // Normal 1W-stable RX dwell time
+#define TWOW_SCAN_INTERVAL_US           2700    // 2W FHSS dwell time per channel
+#define TWOW_SLOW_SCAN_INTERVAL_US      9500    // Diagnostic dwell after io-homecontrol preamble/sync timing
+#define TWOW_SCAN_WINDOW_MS             8000    // Temporary 2W listen window after 2W TX
 
+/*
+    Singleton class to implement an IOHC Radio abstraction layer for controllers.
+    Implements all needed functionalities to receive and send packets from/to the air, masking complexities related to frequency hopping
+    IOHC timings, async sending and receiving through callbacks, ...
+*/
 namespace IOHC {
     using IohcPacketDelegate = Delegate<bool(iohcPacket *iohc)>;
 
@@ -32,22 +59,28 @@ namespace IOHC {
             static iohcRadio *getInstance();
             virtual ~iohcRadio() = default;
             enum class RadioState : uint8_t {
-                IDLE,
-                RX,
-                TX,
-                PREAMBLE,
-                PAYLOAD,
-                LOCKED,
-                ERROR
+                IDLE,        ///< Default state: nothing happening
+                RX,          ///< Receiving mode
+                TX,          ///< Transmitting mode
+                PREAMBLE,    ///< Preamble detected
+                PAYLOAD,     ///< Payload available
+                LOCKED,      ///< Frequency locked
+                ERROR        ///< Error or unknown state
             };
             void start(uint8_t num_freqs, uint32_t *scan_freqs, uint32_t scanTimeUs, IohcPacketDelegate rxCallback, IohcPacketDelegate txCallback);
             void send(iohcPacket *packet);
             void send(std::vector<iohcPacket*>&iohcTx);
+            void sendAuto(std::vector<iohcPacket*>&iohcTx); // Nieuwe versie voor AutoTxRx
+            void startTwoWScan(uint32_t windowMs = TWOW_SCAN_WINDOW_MS, uint32_t dwellUs = TWOW_SCAN_INTERVAL_US);
+            void stopTwoWScan();
             static void setRadioState(RadioState newState);
             static const char* radioStateToString(RadioState state);
             volatile static RadioState radioState;
             static void tickerCounter(iohcRadio *radio);
+            static TaskHandle_t txTaskHandle;
             static volatile bool txComplete;
+            static volatile bool txBatchActive;
+            //static void setPreambleLength(uint16_t preambleLen);
 
         private:
             iohcRadio();
@@ -59,7 +92,7 @@ namespace IOHC {
             static iohcRadio *_iohcRadio;
             static uint8_t _flags[2];
             volatile static unsigned long _g_payload_millis;
-            
+
             volatile static bool send_lock;
 
             volatile uint32_t tickCounter = 0;
@@ -71,12 +104,27 @@ namespace IOHC {
             uint32_t *scan_freqs{};
             uint32_t scanTimeUs{};
             uint8_t currentFreqIdx = 0;
+            uint8_t configuredNumFreqs = 0;
+            uint32_t normalScanTimeUs = DEFAULT_SCAN_INTERVAL_US;
+            bool twoWScanActive = false;
+            unsigned long twoWScanUntilMs = 0;
+            bool currentBatchHas2W = false;
+            bool resumeTwoWScanAfterTx = false;
+            unsigned long resumeTwoWScanUntilMs = 0;
+            uint32_t resumeTwoWScanWindowMs = 0;
+            uint32_t resumeTwoWScanDwellUs = TWOW_SCAN_INTERVAL_US;
+            uint64_t txStartedAtUs = 0;
+            TaskHandle_t tickerTaskHandle = nullptr;
 
-#if defined(ESP32)
+        #if defined(ESP8266)
+            Timers::TickerUs TickTimer;
+            Timers::TickerUs Sender;
+        #elif defined(ESP32)
+            TimersUS::TickerUsESP32 TickTimer;
             TimersUS::TickerUsESP32 Sender;
-#endif
+        #endif
             iohcPacket *iohc{};
-            
+
             IohcPacketDelegate rxCB = nullptr;
             IohcPacketDelegate txCB = nullptr;
             std::vector<iohcPacket*> packets2send{};
@@ -84,6 +132,10 @@ namespace IOHC {
         protected:
             static void i_preamble();
             static void i_payload();
+
+        #if defined(CC1101)
+            uint8_t lenghtFrame=0;
+        #endif
     };
 }
 #endif

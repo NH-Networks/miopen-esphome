@@ -120,6 +120,12 @@ public:
     void set_dio1_pin(int p)   { gateway_.set_dio1_pin(p); }
     void set_frequency(uint32_t f)             { gateway_.set_frequency(f); }
     void set_devices_file(const std::string& f){ gateway_.set_devices_file(f); }
+    void set_cozy_file(const std::string& f)   { gateway_.set_cozy_file(f); }
+    void set_other_file(const std::string& f)  { gateway_.set_other_file(f); }
+    void set_radio_platform(const std::string& p) { gateway_.set_radio_platform(p); }
+    void add_remote_map(const std::string& name, const std::vector<std::string>& devices) {
+        gateway_.add_remote_map(name, devices);
+    }
 
     void setup() override;
     void loop() override;

@@ -1,0 +1,64 @@
+esphome:
+  name: iohomecontrol-gateway
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Include the local component directory
+external_components:
+  - source:
+      type: local
+      path: components
+
+# Radio Transceiver Setup (LilyGO / CC1101 / SX1276)
+iohomecontrol:
+  id: iohc_gtw
+  radio_platform: sx1276  # Options: sx1276, cc1101
+  sck_pin: 5
+  miso_pin: 19
+  mosi_pin: 27
+  nss_pin: 18
+  reset_pin: 23
+  dio0_pin: 26
+  dio1_pin: 33
+  devices_file: "/1W.json"
+  cozy_devices_file: "/2W.json"
+  other_devices_file: "/other_2w.json"
+
+  # Map physical remotes for instant HA state updates (without polling)
+  remotes:
+    - name: "Living Room Remote"
+      devices:
+        - "Living Room Blind"
+
+  # Optional Status & Diagnostic Sensors
+  rssi_sensor:
+    name: "IOHC Radio RSSI"
+  rx_counter:
+    name: "IOHC RX Packet Count"
+  tx_counter:
+    name: "IOHC TX Packet Count"
+  status_sensor:
+    name: "IOHC Gateway Status"
+  last_addr_sensor:
+    name: "IOHC Last Device Address"
+
+  # Control Buttons for Pairing/Scanning
+  scan_button:
+    name: "IOHC Start 1W Scan"
+  add_button:
+    name: "IOHC Pair Last Discovered"
+  remove_button:
+    name: "IOHC Remove Last Discovered"
+  new_remote_button:
+    name: "IOHC Create Virtual Remote"
+  reload_button:
+    name: "IOHC Reload Config"
+
+# Native ESPHome Blinds (Cover Entity)
+cover:
+  - platform: iohomecontrol
+    name: "Living Room Blind"
+    device_id: "123456" # Replace with your 1W/2W device node address in Hex

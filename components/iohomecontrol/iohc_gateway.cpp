@@ -11,6 +11,7 @@
 #include "fileSystemHelpers.h"
 #include "iohcCryptoHelpers.h"  // bytesToHexString, IOHC::lastFromAddress
 #include "tokens.h"
+#include "iohcRemoteMap.h"
 
 static const char* TAG = "iohc_gateway";
 
@@ -91,7 +92,32 @@ bool IohcGateway::load_devices() {
             dispatch_event(ev);
         }
     }
+
+    // Load remotes map from ESPHome YAML config
+    for (const auto& r : remote_maps_) {
+        // Convert name to a fake node address or generate one if needed?
+        // Wait, the original `iohcRemoteMap` expects a node address to add it.
+        // We can just use the first 3 chars of the name, or hash the name to a 3-byte address.
+        address node = {0, 0, 0};
+        for (size_t i = 0; i < r.name.length() && i < 3; i++) {
+            node[i] = r.name[i];
+        }
+        
+        iohcRemoteMap* rmap = iohcRemoteMap::getInstance();
+        rmap->add(node, r.name);
+        for (const auto& d : r.devices) {
+            rmap->linkDevice(node, d);
+        }
+    }
+
     return ok;
+}
+
+void IohcGateway::add_remote_map(const std::string& name, const std::vector<std::string>& devices) {
+    RemoteMapEntry entry;
+    entry.name = name;
+    entry.devices = devices;
+    remote_maps_.push_back(entry);
 }
 
 // ---------------------------------------------------------------------------

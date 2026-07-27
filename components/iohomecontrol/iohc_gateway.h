@@ -67,6 +67,10 @@ public:
     void set_dio1_pin(int p)   { dio1_pin_  = p; }
     void set_frequency(uint32_t f)             { frequency_    = f; }
     void set_devices_file(const std::string& f){ devices_file_ = f; }
+    void set_cozy_file(const std::string& f)   { cozy_file_ = f; }
+    void set_other_file(const std::string& f)  { other_file_ = f; }
+    void set_radio_platform(const std::string& p) { radio_platform_ = p; }
+    void add_remote_map(const std::string& name, const std::vector<std::string>& devices);
 
     bool begin();
     void loop();
@@ -110,6 +114,15 @@ private:
     int      nss_pin_{-1}, reset_pin_{-1}, dio0_pin_{-1}, dio1_pin_{-1};
     uint32_t frequency_{868950000};
     std::string devices_file_{"/1W.json"};
+    std::string cozy_file_{"/2W.json"};
+    std::string other_file_{"/other_2w.json"};
+    std::string radio_platform_{"sx1276"};
+
+    struct RemoteMapEntry {
+        std::string name;
+        std::vector<std::string> devices;
+    };
+    std::vector<RemoteMapEntry> remote_maps_;
 
     iohcRadio*    radio_{nullptr};
     iohcRemote1W* remote_{nullptr};

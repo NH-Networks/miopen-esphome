@@ -13,7 +13,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
 )
 
-AUTO_LOAD = ["cover", "button", "sensor", "text_sensor"]
+AUTO_LOAD = ["cover", "button", "sensor", "text_sensor", "web_server_base"]
 
 iohomecontrol_ns = cg.global_ns.namespace("iohomecontrol")
 
@@ -57,6 +57,11 @@ CONF_NEW_REMOTE_BTN = "new_remote_button"
 CONF_RELOAD_BTN     = "reload_button"
 CONF_TARGET         = "target"
 CONF_NAME           = "name"
+CONF_COZY_FILE      = "cozy_devices_file"
+CONF_OTHER_FILE     = "other_devices_file"
+CONF_RADIO_PLATFORM = "radio_platform"
+CONF_REMOTES        = "remotes"
+CONF_DEVICES        = "devices"
 
 SCAN_BUTTON_SCHEMA      = button.button_schema(IohcScanButton)
 ADD_BUTTON_SCHEMA       = button.button_schema(IohcAddButton)
@@ -64,17 +69,26 @@ REMOVE_BUTTON_SCHEMA    = button.button_schema(IohcRemoveButton)
 NEW_REMOTE_BTN_SCHEMA   = button.button_schema(IohcNewRemoteButton)
 RELOAD_BTN_SCHEMA       = button.button_schema(IohcReloadButton)
 
+REMOTE_MAP_SCHEMA = cv.Schema({
+    cv.Required(CONF_NAME): cv.string,
+    cv.Required(CONF_DEVICES): cv.ensure_list(cv.string),
+})
+
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(IohcGatewayComponent),
+    cv.Optional(CONF_RADIO_PLATFORM, default="sx1276"): cv.one_of("sx1276", "cc1101", lower=True),
     cv.Required(CONF_SCK_PIN):   cv.int_,
     cv.Required(CONF_MISO_PIN):  cv.int_,
     cv.Required(CONF_MOSI_PIN):  cv.int_,
     cv.Required(CONF_NSS_PIN):   cv.int_,
-    cv.Required(CONF_RESET_PIN): cv.int_,
-    cv.Required(CONF_DIO0_PIN):  cv.int_,
+    cv.Optional(CONF_RESET_PIN, default=-1): cv.int_,
+    cv.Optional(CONF_DIO0_PIN, default=-1):  cv.int_,
     cv.Optional(CONF_DIO1_PIN, default=-1): cv.int_,
     cv.Optional(CONF_FREQUENCY,    default=868950000):  cv.int_,
     cv.Optional(CONF_DEVICES_FILE, default="/1W.json"): cv.string,
+    cv.Optional(CONF_COZY_FILE, default="/2W.json"): cv.string,
+    cv.Optional(CONF_OTHER_FILE, default="/other_2w.json"): cv.string,
+    cv.Optional(CONF_REMOTES): cv.ensure_list(REMOTE_MAP_SCHEMA),
     cv.Optional(CONF_RSSI_SENSOR): sensor.sensor_schema(
         unit_of_measurement=UNIT_DECIBEL,
         device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -107,6 +121,15 @@ async def to_code(config):
     cg.add(var.set_dio1_pin(config[CONF_DIO1_PIN]))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
     cg.add(var.set_devices_file(config[CONF_DEVICES_FILE]))
+    cg.add(var.set_cozy_file(config[CONF_COZY_FILE]))
+    cg.add(var.set_other_file(config[CONF_OTHER_FILE]))
+    cg.add(var.set_radio_platform(config[CONF_RADIO_PLATFORM]))
+
+    if CONF_REMOTES in config:
+        for remote in config[CONF_REMOTES]:
+            name = remote[CONF_NAME]
+            devices = remote[CONF_DEVICES]
+            cg.add(var.add_remote_map(name, devices))
 
     if CONF_RSSI_SENSOR in config:
         sens = await sensor.new_sensor(config[CONF_RSSI_SENSOR])
