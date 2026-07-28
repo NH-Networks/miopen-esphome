@@ -26,22 +26,25 @@ namespace Radio {
         {250, {0x00, 0x01}}
     };
 
+    int g_nss_pin = -1;
+
     void IRAM_ATTR SPI_beginTransaction() {
         SPI.beginTransaction(Radio::SpiSettings);
-        digitalWrite(RADIO_NSS, LOW);
+        digitalWrite(g_nss_pin, LOW);
     }
 
     void IRAM_ATTR SPI_endTransaction() {
-        digitalWrite(RADIO_NSS, HIGH);
+        digitalWrite(g_nss_pin, HIGH);
         SPI.endTransaction();
     }
 
-    void initHardware() {
+    void initHardware(int nss, int rst, int sck, int miso, int mosi) {
+        g_nss_pin = nss;
         printf("\nSPI Init");
-        pinMode(RADIO_MISO, INPUT_PULLUP);
-        pinMode(RADIO_RESET, INPUT);
+        pinMode(miso, INPUT_PULLUP);
+        pinMode(rst, INPUT);
 
-        while (!digitalRead(RADIO_RESET)) {
+        while (!digitalRead(rst)) {
 #if defined(ESP32)
             esp_task_wdt_reset();
 #endif
@@ -50,13 +53,13 @@ namespace Radio {
         delayMicroseconds(BOARD_READY_AFTER_POR);
 
 #if defined(ESP32)
-        SPI.begin(RADIO_SCLK, RADIO_MISO, RADIO_MOSI, RADIO_NSS);
+        SPI.begin(sck, miso, mosi, nss);
 #endif
 
-        pinMode(RADIO_NSS, OUTPUT);
-        pinMode(RADIO_RESET, OUTPUT);
-        digitalWrite(RADIO_RESET, HIGH);
-        digitalWrite(RADIO_NSS, HIGH);
+        pinMode(nss, OUTPUT);
+        pinMode(rst, OUTPUT);
+        digitalWrite(rst, HIGH);
+        digitalWrite(nss, HIGH);
         delayMicroseconds(BOARD_READY_AFTER_POR);
 
         writeByte(REG_OPMODE, RF_OPMODE_STANDBY);

@@ -27,18 +27,30 @@ IohcGateway::~IohcGateway() {
 }
 
 // ---------------------------------------------------------------------------
-// ISR — enqueues alleen een statische token; alle verwerking in loop()
-// GEEN millis(), GEEN stack-allocatie, GEEN heap-gebruik in ISR
+// Callbacks from iohcRadio
 // ---------------------------------------------------------------------------
-void IRAM_ATTR IohcGateway::isr_dio0_handler() {
-    if (instance_) instance_->enqueue_rx_irq();
+bool IohcGateway::rx_callback(IOHC::iohcPacket* packet) {
+    if (!instance_) return false;
+    
+    GatewayEvent ev;
+    ev.type = EventType::FRAME_RECEIVED;
+    ev.frame.len = packet->buffer_length;
+    if (ev.frame.len > sizeof(ev.frame.data)) ev.frame.len = sizeof(ev.frame.data);
+    memcpy(ev.frame.data, packet->payload.buffer, ev.frame.len);
+    ev.frame.rssi = packet->rssi;
+    ev.frame.timestamp_ms = millis();
+    
+    instance_->event_queue_.push(ev);
+    return true;
 }
 
-void IRAM_ATTR IohcGateway::enqueue_rx_irq() {
-    // Gebruik static sentinel — geen stack-allocatie in ISR
-    // timestamp_ms wordt ingevuld in loop() na het poppen
-    GatewayEvent ev = rx_sentinel_event();
-    event_queue_.push(ev);
+bool IohcGateway::tx_callback(IOHC::iohcPacket* packet) {
+    if (!instance_) return false;
+    
+    GatewayEvent ev;
+    ev.type = EventType::FRAME_TRANSMITTED;
+    instance_->event_queue_.push(ev);
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -57,19 +69,15 @@ bool IohcGateway::begin() {
         ESP_LOGW(TAG, "No devices in %s — pair new screens via scan+add",
                  devices_file_.c_str());
 
-    if (dio0_pin_ >= 0) {
-        pinMode(dio0_pin_, INPUT);
-        attachInterrupt(digitalPinToInterrupt(dio0_pin_),
-                        IohcGateway::isr_dio0_handler, RISING);
-        ESP_LOGI(TAG, "DIO0 IRQ attached on GPIO%d", dio0_pin_);
-    }
+    uint32_t freqs[] = {frequency_};
+    radio_->start(1, freqs, 0, IohcGateway::rx_callback, IohcGateway::tx_callback);
 
     radio_ok_ = true;
     return true;
 }
 
 bool IohcGateway::init_radio() {
-    if (!radio_) radio_ = new iohcRadio();
+    if (!radio_) radio_ = new IOHC::iohcRadio();
     return radio_->init(nss_pin_, reset_pin_,
                         sck_pin_, miso_pin_, mosi_pin_, frequency_);
 }
@@ -133,12 +141,14 @@ void IohcGateway::loop() {
     GatewayEvent ev;
     while (event_queue_.pop(ev)) {
         if (ev.type == EventType::FRAME_RECEIVED && remote_) {
-            // RSSI VOOR processRx() lezen — register wordt overschreven na verwerking
-            last_rssi_ = radio_ ? radio_->getRSSI() : 0;
-            ev.frame.rssi      = last_rssi_;
-            ev.frame.timestamp_ms = millis();  // timestamp hier, niet in ISR
+            // Reconstruct packet
+            IOHC::iohcPacket packet;
+            packet.buffer_length = ev.frame.len;
+            memcpy(packet.payload.buffer, ev.frame.data, ev.frame.len);
+            packet.rssi = ev.frame.rssi;
+            packet.decode(false);
 
-            remote_->processRx();
+            remote_->processRx(&packet);
             rx_count_++;
 
             // Laatste gehoord adres bijwerken vanuit upstream global

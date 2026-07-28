@@ -54,7 +54,7 @@ namespace Radio {
         uint8_t     Exp;
     };
 
-    void initHardware();
+    void initHardware(int nss, int rst, int sck, int miso, int mosi);
     void initRegisters(uint8_t maxPayloadLength);
     void calibrate();
     void setStandby();

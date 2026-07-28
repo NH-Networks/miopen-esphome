@@ -62,6 +62,8 @@ namespace IOHC {
         bool setTravelTime(const std::string &description, uint32_t travelTime);
         bool setRepeatOnNoResponse(const std::string &description, bool repeatOnNoResponse);
         void updatePositions();
+        void tick();
+        void processRx(iohcPacket* packet);
 
     private:
         iohcRemote1W();

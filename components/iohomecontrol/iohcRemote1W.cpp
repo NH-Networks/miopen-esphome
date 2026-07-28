@@ -692,4 +692,17 @@ namespace IOHC {
             }
         }
     }
+
+    void iohcRemote1W::tick() {
+        // Reserved for future periodic checks in ESPHome loop
+    }
+
+    void iohcRemote1W::processRx(iohcPacket* packet) {
+        if (!packet) return;
+        printf("iohcRemote1W::processRx received packet from %02x%02x%02x cmd: %02x\n",
+            packet->payload.packet.header.source[0],
+            packet->payload.packet.header.source[1],
+            packet->payload.packet.header.source[2],
+            packet->payload.packet.header.cmd);
+    }
 }

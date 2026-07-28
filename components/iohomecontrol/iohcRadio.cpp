@@ -171,26 +171,7 @@ namespace IOHC {
     }
 
     iohcRadio::iohcRadio() {
-        Radio::initHardware();
-        Radio::calibrate();
-
-        Radio::initRegisters(MAX_FRAME_LEN);
-        Radio::setCarrier(Radio::Carrier::Deviation, 19200);
-        Radio::setCarrier(Radio::Carrier::Bitrate, 38400);
-        Radio::setCarrier(Radio::Carrier::Bandwidth, 250);
-        Radio::setCarrier(Radio::Carrier::Modulation, Radio::Modulation::FSK);
-
-        // Attach interrupts to Preamble detected and end of packet sent/received
-        /* TODO this is wrongly named and/or assigned, but work like that*/
-#if defined(RADIO_SX127X)
-        //        attachInterrupt(RADIO_PACKET_AVAIL, i_payload, CHANGE); //
-        //        attachInterrupt(RADIO_PREAMBLE_DETECTED, i_preamble, CHANGE); //
-        attachInterrupt(RADIO_DIO0_PIN, handle_payload_interrupt_fromisr, RISING); //CHANGE); //
-        //        attachInterrupt(RADIO_DIO1_PIN, handle_interrupt_fromisr, RISING); // CHANGE); //
-        attachInterrupt(RADIO_DIO2_PIN, handle_sync_interrupt_fromisr, CHANGE);
-#elif defined(CC1101)
-        attachInterrupt(RADIO_PREAMBLE_DETECTED, i_preamble, RISING);
-#endif
+        _iohcRadio = this;
 
         callbackQueue = xQueueCreate(40, sizeof(struct Callback *));
         auto callbackTaskCode = xTaskCreatePinnedToCore(callbackTaskLoop, "CallbackTask", 4096, NULL, 5, &callbackTask, 0);
@@ -210,6 +191,32 @@ namespace IOHC {
             // sx127x_destroy(device);
             return;
         }
+    }
+
+    bool iohcRadio::init(int nss, int rst, int sck, int miso, int mosi, uint32_t freq) {
+        Radio::initHardware(nss, rst, sck, miso, mosi);
+        Radio::calibrate();
+        Radio::initRegisters(MAX_FRAME_LEN);
+        Radio::setCarrier(Radio::Carrier::Deviation, 19200);
+        Radio::setCarrier(Radio::Carrier::Bitrate, 38400);
+        Radio::setCarrier(Radio::Carrier::Bandwidth, 250);
+        Radio::setCarrier(Radio::Carrier::Modulation, Radio::Modulation::FSK);
+
+#if defined(RADIO_SX127X)
+        attachInterrupt(digitalPinToInterrupt(RADIO_DIO0_PIN), handle_payload_interrupt_fromisr, RISING);
+        attachInterrupt(digitalPinToInterrupt(RADIO_DIO2_PIN), handle_sync_interrupt_fromisr, CHANGE);
+#elif defined(CC1101)
+        attachInterrupt(digitalPinToInterrupt(RADIO_PREAMBLE_DETECTED), i_preamble, RISING);
+#endif
+        return true;
+    }
+
+    int iohcRadio::getRSSI() {
+#if defined(RADIO_SX127X)
+        return Radio::readByte(REG_RSSIVALUE);
+#else
+        return 0;
+#endif
     }
 
     /**

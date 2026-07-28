@@ -56,6 +56,9 @@ namespace IOHC {
 
     class iohcRadio  {
         public:
+            iohcRadio();
+            bool init(int nss, int rst, int sck, int miso, int mosi, uint32_t freq);
+            int getRSSI();
             static iohcRadio *getInstance();
             virtual ~iohcRadio() = default;
             enum class RadioState : uint8_t {
@@ -83,7 +86,6 @@ namespace IOHC {
             //static void setPreambleLength(uint16_t preambleLen);
 
         private:
-            iohcRadio();
             bool receive(bool stats);
             bool sent(iohcPacket *packet);
             void queueSend(std::vector<iohcPacket*> &iohcTx);

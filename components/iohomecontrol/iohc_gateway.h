@@ -10,6 +10,7 @@
 
 class iohcRadio;
 class iohcRemote1W;
+namespace IOHC { class iohcPacket; }
 
 namespace iohomecontrol {
 
@@ -101,14 +102,15 @@ public:
     const std::string& last_error() const { return last_error_; }
     const std::string& last_addr()  const { return last_addr_;  }
 
-    static void IRAM_ATTR isr_dio0_handler();
     static IohcGateway* instance_;
+
+    static bool rx_callback(IOHC::iohcPacket* packet);
+    static bool tx_callback(IOHC::iohcPacket* packet);
 
 private:
     void dispatch_event(const GatewayEvent& ev);
     bool init_radio();
     bool load_devices();
-    void IRAM_ATTR enqueue_rx_irq();
 
     int      sck_pin_{-1}, miso_pin_{-1}, mosi_pin_{-1};
     int      nss_pin_{-1}, reset_pin_{-1}, dio0_pin_{-1}, dio1_pin_{-1};
