@@ -7,8 +7,35 @@ on:
       - 'v*'
 
 jobs:
-  build-and-release:
+  # ---------------------------------------------------------------------------
+  # Job 1: ESPHome component compile check
+  # ---------------------------------------------------------------------------
+  esphome-build:
+    name: ESPHome compile check
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install ESPHome
+        run: pip install esphome==2026.7.2
+
+      - name: Compile ESPHome component (SX127X)
+        run: |
+          esphome compile ci/test_sx127x.yaml
+
+  # ---------------------------------------------------------------------------
+  # Job 2: PlatformIO firmware build + release
+  # ---------------------------------------------------------------------------
+  build-and-release:
+    name: PlatformIO build & release
+    runs-on: ubuntu-latest
+    needs: esphome-build
     permissions:
       contents: write
     steps:
@@ -26,11 +53,11 @@ jobs:
           restore-keys: ${{ runner.os }}-pio-
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.14'
+          python-version: '3.12'
 
-      - name: install esptools
+      - name: Install esptool
         run: pip install -U esptool
 
       - name: Generate release tag
@@ -50,20 +77,20 @@ jobs:
           RELEASE_VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || steps.generate_release_tag.outputs.release_tag }}
         run: pio run -t buildfs
 
-      - name: Merge bin files together for LilyGoLoraESP32
+      - name: Merge bin files for LilyGoLoraESP32
         run: esptool --chip esp32 merge-bin -o LilyGoLoraESP32.bin --flash-size 4MB 0x1000 .pio/build/LilyGoLoraESP32/bootloader.bin 0x8000 .pio/build/LilyGoLoraESP32/partitions.bin 0x10000 .pio/build/LilyGoLoraESP32/firmware.bin 0x210000 .pio/build/LilyGoLoraESP32/littlefs.bin
 
-      - name: Merge bin files together for HeltecLoraV2ESP32
+      - name: Merge bin files for HeltecLoraV2ESP32
         run: esptool --chip esp32 merge-bin -o HeltecLoraV2ESP32.bin --flash-size 8MB 0x1000 .pio/build/HeltecLoraV2ESP32/bootloader.bin 0x8000 .pio/build/HeltecLoraV2ESP32/partitions.bin 0x10000 .pio/build/HeltecLoraV2ESP32/firmware.bin 0x670000 .pio/build/HeltecLoraV2ESP32/littlefs.bin
 
-      - name: Prepare firmware and littlefs files for release
+      - name: Prepare firmware files for release
         run: |
           mv .pio/build/LilyGoLoraESP32/firmware.bin LilyGoLoraESP32_firmware.bin
           mv .pio/build/LilyGoLoraESP32/littlefs.bin LilyGoLoraESP32_filesystem.bin
           mv .pio/build/HeltecLoraV2ESP32/firmware.bin HeltecLoraV2ESP32_firmware.bin
           mv .pio/build/HeltecLoraV2ESP32/littlefs.bin HeltecLoraV2ESP32_filesystem.bin
 
-      - name: "✏️ Generate release changelog"
+      - name: Generate release changelog
         uses: janheinrichmerker/action-github-changelog-generator@v2.4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -72,11 +99,11 @@ jobs:
           stripHeaders: true
 
       - name: Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || steps.generate_release_tag.outputs.release_tag }}
           body_path: changelog.md
-          prerelease: ${{  !startsWith(github.ref_name, 'v') }}
+          prerelease: ${{ !startsWith(github.ref_name, 'v') }}
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || steps.generate_release_tag.outputs.release_tag }}
           files: |
             LilyGoLoraESP32.bin
@@ -87,7 +114,7 @@ jobs:
             HeltecLoraV2ESP32_filesystem.bin
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
           path: |
