@@ -19,6 +19,9 @@ public:
     explicit IohcCover(const std::string& device_id, IohcGateway* gw)
         : device_id_(device_id), gateway_(gw) {}
 
+    // Virtual destructor required: class is polymorphic (delete via base pointer)
+    virtual ~IohcCover() = default;
+
     esphome::cover::CoverTraits get_traits() override {
         auto t = esphome::cover::CoverTraits();
         t.set_supports_position(true);

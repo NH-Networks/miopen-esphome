@@ -18,12 +18,22 @@
 #include <map>
 #include "esp_log.h"
 #include <queue>
+#include <string>
+#include <cstdlib>  // std::to_string
 
 #include "iohcRadio.h"
 #include <utility>
 #include "utils.h"
 
-inline void addLogMessage(const String& msg) {
+// ---------------------------------------------------------------------------
+// setCrashMarker stub — only available on custom firmware builds that define
+// it externally. Fall back to a no-op so the ESP-IDF build compiles cleanly.
+// ---------------------------------------------------------------------------
+#ifndef setCrashMarker
+#define setCrashMarker(msg) ((void)0)
+#endif
+
+inline void addLogMessage(const std::string& msg) {
     ESP_LOGD("iohcRadio", "%s", msg.c_str());
 }
 
@@ -68,21 +78,21 @@ namespace IOHC {
     static uint32_t lastHandledPayloadIrqCount = 0;
     static uint8_t lastDiagFreqIdx = 0xff;
 
-    static String twoWRadioDiag(uint32_t frequency, uint8_t irq1, uint8_t irq2) {
+    static std::string twoWRadioDiag(uint32_t frequency, uint8_t irq1, uint8_t irq2) {
 #if defined(RADIO_SX127X)
-        return " freq=" + String(frequency) +
-               " dio0=" + String(digitalRead(RADIO_PACKET_AVAIL)) +
-               " dio2=" + String(digitalRead(RADIO_PREAMBLE_DETECTED)) +
-               " irq_sync=" + String(twoWSyncIrqCount) +
-               " irq_payload=" + String(twoWPayloadIrqCount) +
-               " irq1=" + String(irq1, HEX) +
-               " irq2=" + String(irq2, HEX) +
-               " rssi=" + String(Radio::readByte(REG_RSSIVALUE)) +
-               " op=" + String(Radio::readByte(REG_OPMODE), HEX) +
-               " sync=" + String(Radio::readByte(REG_SYNCCONFIG), HEX) +
-               " rx=" + String(Radio::readByte(REG_RXCONFIG), HEX) +
-               " dioMap=" + String(Radio::readByte(REG_DIOMAPPING1), HEX) + "/" +
-                            String(Radio::readByte(REG_DIOMAPPING2), HEX);
+        return " freq=" + std::to_string(frequency) +
+               " dio0=" + std::to_string(digitalRead(RADIO_PACKET_AVAIL)) +
+               " dio2=" + std::to_string(digitalRead(RADIO_PREAMBLE_DETECTED)) +
+               " irq_sync=" + std::to_string(twoWSyncIrqCount) +
+               " irq_payload=" + std::to_string(twoWPayloadIrqCount) +
+               " irq1=0x" + to_hex_str(irq1) +
+               " irq2=0x" + to_hex_str(irq2) +
+               " rssi=" + std::to_string(Radio::readByte(REG_RSSIVALUE)) +
+               " op=0x" + to_hex_str(Radio::readByte(REG_OPMODE)) +
+               " sync=0x" + to_hex_str(Radio::readByte(REG_SYNCCONFIG)) +
+               " rx=0x" + to_hex_str(Radio::readByte(REG_RXCONFIG)) +
+               " dioMap=0x" + to_hex_str(Radio::readByte(REG_DIOMAPPING1)) +
+               "/0x" + to_hex_str(Radio::readByte(REG_DIOMAPPING2));
 #else
         return "";
 #endif
@@ -322,13 +332,13 @@ namespace IOHC {
         Radio::setRx();
         delayMicroseconds(500);
         setRadioState(RadioState::RX);
-        String scanMsg = "2W scan started channels=" + String(num_freqs) +
-                         " dwell_us=" + String(scanTimeUs) +
-                         " window_ms=" + String(windowMs) +
+        std::string scanMsg = "2W scan started channels=" + std::to_string(num_freqs) +
+                         " dwell_us=" + std::to_string(scanTimeUs) +
+                         " window_ms=" + std::to_string(windowMs) +
                          " freqs=";
         for (uint8_t idx = 0; idx < num_freqs; ++idx) {
             if (idx) scanMsg += ",";
-            scanMsg += String(scan_freqs[idx]);
+            scanMsg += std::to_string(scan_freqs[idx]);
         }
         addLogMessage(scanMsg + twoWRadioDiag(scan_freqs[currentFreqIdx],
                                               Radio::readByte(REG_IRQFLAGS1),
@@ -354,7 +364,7 @@ namespace IOHC {
         Radio::setCarrier(Radio::Carrier::Frequency, scan_freqs[currentFreqIdx]);
         Radio::setRx();
         setRadioState(RadioState::RX);
-        addLogMessage("2W scan stopped; RX back to " + String(scan_freqs[currentFreqIdx]));
+        addLogMessage("2W scan stopped; RX back to " + std::to_string(scan_freqs[currentFreqIdx]));
 #endif
     }
 
@@ -470,7 +480,7 @@ namespace IOHC {
             } else if (summaryDue) {
                 lastTwoWScanSummaryMs = nowMs;
                 lastDiagFreqIdx = radio->currentFreqIdx;
-                addLogMessage("2W scan listening channels=" + String(radio->num_freqs) +
+                addLogMessage("2W scan listening channels=" + std::to_string(radio->num_freqs) +
                               twoWRadioDiag(radio->scan_freqs[radio->currentFreqIdx],
                                             _flags[0], _flags[1]));
             }
@@ -572,7 +582,7 @@ void iohcRadio::startQueuedSend() {
 
     auto packet = packets2send[txCounter];
 
-    // 🟢 Set long preamble for first packet
+    // Set long preamble for first packet
     Radio::setPreambleLength(LONG_PREAMBLE_MS);
     ets_printf("TX: Using LONG preamble (%d ms)\n", LONG_PREAMBLE_MS);
 
@@ -585,9 +595,6 @@ void iohcRadio::startQueuedSend() {
     Radio::writeBytes(REG_FIFO, packet->payload.buffer, packet->buffer_length);
     Radio::setTx();
     txStartedAtUs = esp_timer_get_time();
-    //packetStamp = esp_timer_get_time();
-    //packet->decode(true); //false);
-    //IOHC::lastSendCmd = packet->payload.packet.header.cmd;
 
     ets_printf("TX: Sent first packet (%d repeats) at %llu us\n", packet->repeat, esp_timer_get_time());
 
@@ -611,7 +618,7 @@ void iohcRadio::onTxTicker(void *arg) {
     iohcRadio *radio = (iohcRadio *)arg;
     auto packet = radio->packets2send[radio->txCounter];
 
-    // 🩵 Fallback: Check IRQFLAGS2 (0x3F) for PacketSent in FSK mode
+    // Fallback: Check IRQFLAGS2 (0x3F) for PacketSent in FSK mode
     uint8_t irqFlags2 = Radio::readByte(0x3F); // REG_IRQFLAGS2
     if (irqFlags2 & 0x08) { // Bit 3 == PacketSent (TXDONE in FSK)
         ets_printf("FSK: Detected PacketSent (TXDONE) via register (ISR missed?)\n");
@@ -624,16 +631,16 @@ void iohcRadio::onTxTicker(void *arg) {
         iohcRadio::txComplete = true;
     }
 
-    // ⏳ Wait for TXDONE
+    // Wait for TXDONE
     if (!radio->txComplete) {
         ets_printf("TX: Waiting for TXDONE... (state=%s)\n", radioStateToString(radio->radioState));
         return;
     }
 
-    // ✅ TXDONE received
+    // TXDONE received
     ESP_LOGD("RADIO", "TXDONE flag set, ready to send repeat or next packet.\n");
 
-    // 🔁 Repeat logic
+    // Repeat logic
     if (packet->repeat > 0) {
         packet->repeat--;
         ets_printf("TX: Repeating current packet (%d repeats left)\n", packet->repeat);
@@ -644,7 +651,7 @@ void iohcRadio::onTxTicker(void *arg) {
         radio->txCounter++;
 
 
-        // 🛑 Check if all packets are sent
+        // Check if all packets are sent
         if (radio->txCounter == radio->packets2send.size()) {
             ets_printf("TX: All packets sent. Stopping Ticker.\n");
             const bool start2WListen = radio->currentBatchHas2W;
@@ -692,9 +699,6 @@ void iohcRadio::onTxTicker(void *arg) {
     Radio::writeBytes(REG_FIFO, packet->payload.buffer, packet->buffer_length);
     Radio::setTx();
     radio->txStartedAtUs = esp_timer_get_time();
-    //packetStamp = esp_timer_get_time();
-    //packet->decode(true); //false);
-    //IOHC::lastSendCmd = packet->payload.packet.header.cmd;
 
     ets_printf("TX: Sent packet %d/%d at %llu us\n",
                radio->txCounter + 1,
@@ -734,7 +738,7 @@ bool queueCallback(IohcPacketDelegate* callback, iohcPacket* packet) {
         if (packet) {
             packetStamp.store(esp_timer_get_time());
             packet->decode(true);
-            addLogMessage(String(packet->decodeToString(true).c_str()));
+            addLogMessage(std::string(packet->decodeToString(true).c_str()));
 #if defined(MQTT)
             publishRadioLogEvent(packet, "TX");
 #endif
@@ -846,13 +850,10 @@ bool queueCallback(IohcPacketDelegate* callback, iohcPacket* packet) {
                 lenghtFrameCoded = ((lenghtFrame + 2 + 1)*8) + ((lenghtFrame + 2 + 1)*2);   // Calculate Num of bits of encoded frame (add 2 bit per byte)
                 lenghtFrameCoded = ceil((float)lenghtFrameCoded/8);                         // divide by 8 bits per byte and round to up
                 Radio::setPktLenght(lenghtFrameCoded);
-                //Serial.printf("BytesReaded: %d\tlenghtFrame: 0x%d\t lenghtFrameCoded: 0x%d\n", readBytes, lenghtFrame,  lenghtFrameCoded);
             }
 
             if (bytesInFIFO == 0) {
                 if (millis() - lastPop > 5) {
-                    // readData was required to read a packet longer than the one received.
-                    //Serial.println("No data for more than 5mS. Stop here.");
                     break;
                 } else {
                     delay(1);
@@ -930,10 +931,10 @@ bool queueCallback(IohcPacketDelegate* callback, iohcPacket* packet) {
             iohc->buffer_length != expectedLength) {
             lastHandledPayloadIrqCount = twoWPayloadIrqCount;
             const uint8_t safeRawLen = iohc->buffer_length <= MAX_FRAME_LEN ? iohc->buffer_length : MAX_FRAME_LEN;
-            const String raw = bytesToHexString(iohc->payload.buffer, safeRawLen).c_str();
-            const String details = "len=" + String(iohc->buffer_length) +
-                                   " expected=" + String(expectedLength) +
-                                   " overflow=" + String(rxOverflow ? "yes" : "no") +
+            const std::string raw = bytesToHexString(iohc->payload.buffer, safeRawLen).c_str();
+            const std::string details = "len=" + std::to_string(iohc->buffer_length) +
+                                   " expected=" + std::to_string(expectedLength) +
+                                   " overflow=" + std::string(rxOverflow ? "yes" : "no") +
                                    " raw=" + raw;
             const bool logInvalidRx = !twoWScanActive || millis() - lastInvalidRxLogMs >= 5000UL;
             if (logInvalidRx) {
@@ -955,18 +956,18 @@ bool queueCallback(IohcPacketDelegate* callback, iohcPacket* packet) {
                        fifoCount, iohc->buffer_length, rxOverflow ? 1 : 0,
                        irqFlags1Before, irqFlags1After, irqFlags2Before, irqFlags2After,
                        expectedLength);
-            addLogMessage("2W RX FIFO read=" + String(fifoCount) +
-                          " stored=" + String(iohc->buffer_length) +
-                          " overflow=" + String(rxOverflow ? "yes" : "no") +
-                          " irq1=" + String(irqFlags1Before, HEX) + "/" + String(irqFlags1After, HEX) +
-                          " irq2=" + String(irqFlags2Before, HEX) + "/" + String(irqFlags2After, HEX));
+            addLogMessage("2W RX FIFO read=" + std::to_string(fifoCount) +
+                          " stored=" + std::to_string(iohc->buffer_length) +
+                          " overflow=" + std::string(rxOverflow ? "yes" : "no") +
+                          " irq1=0x" + to_hex_str(irqFlags1Before) + "/0x" + to_hex_str(irqFlags1After) +
+                          " irq2=0x" + to_hex_str(irqFlags2Before) + "/0x" + to_hex_str(irqFlags2After));
         }
 #endif
-        String rawMessage = "Radio RX len=" + String(iohc->buffer_length) +
-                            " freq=" + String(iohc->frequency) +
-                            " proto=" + String(iohc->payload.packet.header.CtrlByte1.asStruct.Protocol ? "1W" : "2W") +
-                            " cmd=" + String(to_hex_str(iohc->payload.packet.header.cmd).c_str()) +
-                            " raw=" + String(bytesToHexString(iohc->payload.buffer, iohc->buffer_length).c_str());
+        std::string rawMessage = "Radio RX len=" + std::to_string(iohc->buffer_length) +
+                            " freq=" + std::to_string(iohc->frequency) +
+                            " proto=" + std::string(iohc->payload.packet.header.CtrlByte1.asStruct.Protocol ? "1W" : "2W") +
+                            " cmd=" + to_hex_str(iohc->payload.packet.header.cmd) +
+                            " raw=" + bytesToHexString(iohc->payload.buffer, iohc->buffer_length).c_str();
         if (twoWScanActive && !isTwoW) {
             addLogMessage("1W RX during 2W scan " + rawMessage);
         } else {
@@ -975,8 +976,8 @@ bool queueCallback(IohcPacketDelegate* callback, iohcPacket* packet) {
         lastHandledPayloadIrqCount = twoWPayloadIrqCount;
         if (iohc->buffer_length > MAX_FRAME_LEN ||
             iohc->buffer_length != iohc->payload.packet.header.CtrlByte1.asStruct.MsgLen + 1) {
-            addLogMessage("Radio RX rejected before decode len=" + String(iohc->buffer_length) +
-                          " expected=" + String(iohc->payload.packet.header.CtrlByte1.asStruct.MsgLen + 1));
+            addLogMessage("Radio RX rejected before decode len=" + std::to_string(iohc->buffer_length) +
+                          " expected=" + std::to_string(iohc->payload.packet.header.CtrlByte1.asStruct.MsgLen + 1));
             Radio::clearBuffer();
             Radio::clearFlags();
             Radio::setRx();
@@ -987,7 +988,7 @@ bool queueCallback(IohcPacketDelegate* callback, iohcPacket* packet) {
             return false;
         }
         iohc->decode(true); //stats);
-        addLogMessage(String(iohc->decodeToString(true).c_str()));
+        addLogMessage(std::string(iohc->decodeToString(true).c_str()));
         iohcPacket *receivedPacket = iohc;
         iohc = nullptr;
         if (rxCB) {
@@ -1045,8 +1046,6 @@ bool queueCallback(IohcPacketDelegate* callback, iohcPacket* packet) {
             return;
         }
         radioState = newState;
-        // Optional debug:
-        //printf("State changed to: %d\n", static_cast<int>(newState));
         ets_printf("State: %s\n", radioStateToString(newState));
     }
 }
