@@ -1,0 +1,23 @@
+idf_component_register(
+    SRCS
+        "SX1276Helpers.cpp"
+        "TickerUsESP32.cpp"
+        "blind_position.cpp"
+        "fileSystemHelpers.cpp"
+        "iohcCozyDevice2W.cpp"
+        "iohcCryptoHelpers.cpp"
+        "iohcDevice.cpp"
+        "iohcObject.cpp"
+        "iohcOtherDevice2W.cpp"
+        "iohcPacket.cpp"
+        "iohcRadio.cpp"
+        "iohcRemote1W.cpp"
+        "iohcRemoteMap.cpp"
+        "iohcSystemTable.cpp"
+        "iohc_esphome.cpp"
+        "iohc_gateway.cpp"
+        "nvs_helpers.cpp"
+        "version_info.cpp"
+    INCLUDE_DIRS "."
+    REQUIRES "SPI" "arduino-esp32" "esphome"
+)
