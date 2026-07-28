@@ -97,7 +97,6 @@ void IohcGatewayComponent::wire_buttons() {
     if (add_btn_) {
         add_btn_->set_gateway(&gateway_);
         add_btn_->set_target(&target_device_);
-        // set_remote_name() verwijderd — Add doet geen new_remote meer
     }
     if (remove_btn_) {
         remove_btn_->set_gateway(&gateway_);
@@ -116,7 +115,6 @@ void IohcGatewayComponent::loop() {
     gateway_.loop();
 
     // Diagnostics rx/tx elke 10 seconden publiceren
-    // RSSI wordt gepubliceerd via FRAME_RECEIVED event — niet hier
     const uint32_t now = millis();
     if (now - last_diag_ms_ >= 10000) {
         last_diag_ms_ = now;
@@ -148,7 +146,6 @@ void IohcGatewayComponent::on_gateway_event(const GatewayEvent& ev) {
         }
 
         case EventType::FRAME_RECEIVED: {
-            // RSSI sensor: één bron — hier, niet in loop()
             if (rssi_sensor_)
                 rssi_sensor_->publish_state((float)ev.frame.rssi);
 
@@ -162,8 +159,6 @@ void IohcGatewayComponent::on_gateway_event(const GatewayEvent& ev) {
         }
 
         case EventType::FRAME_TRANSMITTED: {
-            // tx_count wordt bijgehouden in gateway zelf;
-            // hier optioneel UI feedback mogelijk in de toekomst
             break;
         }
 
@@ -181,7 +176,7 @@ void IohcGatewayComponent::on_gateway_event(const GatewayEvent& ev) {
             const std::string id(ev.device_discovered.device_id);
             auto it = covers_.find(id);
             if (it != covers_.end()) {
-                delete it->second;   // heap leak fix: object vrijgeven
+                delete it->second;
                 covers_.erase(it);
                 ESP_LOGI(TAG, "Apparaat ontkoppeld: %s", id.c_str());
             }
@@ -213,12 +208,9 @@ IohcCover* IohcGatewayComponent::get_or_create_cover(
     const std::string object_id_str = "iohc_" + device_id;
 
     auto* cov = new IohcCover(device_id, &gateway_);
-    // Native API doesn't support dynamic entity creation at runtime in newer ESPHome.
-    // For now, we will just return a dummy or comment this out, but it means devices
-    // paired at runtime won't show up in Home Assistant without a reboot/recompile if using Native API.
-    // cov->set_name(entity_name.c_str());
-    // cov->set_object_id(object_id_str.c_str());
-    // esphome::App.register_cover(cov);
+    cov->set_name(entity_name.c_str());
+    cov->set_object_id(object_id_str.c_str());
+    esphome::App.register_cover(cov);
     covers_[device_id] = cov;
 
     ESP_LOGI(TAG, "Cover geregistreerd: '%s' (id: %s)",

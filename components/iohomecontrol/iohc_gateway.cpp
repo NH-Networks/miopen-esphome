@@ -22,7 +22,8 @@ IohcGateway* IohcGateway::instance_ = nullptr;
 IohcGateway::IohcGateway()  { instance_ = this; }
 IohcGateway::~IohcGateway() {
     if (radio_)  { delete radio_;  radio_  = nullptr; }
-    if (remote_) { delete remote_; remote_ = nullptr; }
+    // remote_ is a singleton — we do not own it, just clear the pointer
+    remote_ = nullptr;
     if (instance_ == this) instance_ = nullptr;
 }
 
@@ -83,12 +84,9 @@ bool IohcGateway::init_radio() {
 }
 
 bool IohcGateway::load_devices() {
-    // Wis de bestaande remote bij reload om duplicaten te voorkomen
-    if (remote_) {
-        delete remote_;
-        remote_ = nullptr;
-    }
-    remote_ = new iohcRemote1W(radio_);
+    // iohcRemote1W is a singleton — reset our pointer but do not delete it
+    remote_ = nullptr;
+    remote_ = IOHC::iohcRemote1W::getInstance();
     bool ok = remote_->load();
     if (ok && remote_) {
         for (const auto& r : remote_->getRemotes()) {
@@ -103,9 +101,6 @@ bool IohcGateway::load_devices() {
 
     // Load remotes map from ESPHome YAML config
     for (const auto& r : remote_maps_) {
-        // Convert name to a fake node address or generate one if needed?
-        // Wait, the original `iohcRemoteMap` expects a node address to add it.
-        // We can just use the first 3 chars of the name, or hash the name to a 3-byte address.
         address node = {0, 0, 0};
         for (size_t i = 0; i < r.name.length() && i < 3; i++) {
             node[i] = r.name[i];
@@ -354,7 +349,7 @@ bool IohcGateway::cmd_scan() {
 
 bool IohcGateway::cmd_reload_devices() {
     ESP_LOGI(TAG, "Herladen apparaten uit '%s'", devices_file_.c_str());
-    return load_devices();  // load_devices() wist remote_ eerst
+    return load_devices();
 }
 
 } // namespace iohomecontrol
