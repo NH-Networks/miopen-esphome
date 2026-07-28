@@ -210,7 +210,9 @@ IohcCover* IohcGatewayComponent::get_or_create_cover(
     auto* cov = new IohcCover(device_id, &gateway_);
     cov->set_name(entity_name);
     cov->set_object_id(object_id_str);
-    esphome::App.register_component(cov);
+    // ESPHome 2026.x: register_component_ (with trailing underscore) is the
+    // correct internal API for dynamically registering components at runtime.
+    esphome::App.register_component_(cov);
     covers_[device_id] = cov;
 
     ESP_LOGI(TAG, "Cover geregistreerd: '%s' (id: %s)",
