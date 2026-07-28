@@ -19,6 +19,7 @@ iohomecontrol_ns = cg.global_ns.namespace("iohomecontrol")
 
 # Component classes
 IohcGatewayComponent = iohomecontrol_ns.class_("IohcGatewayComponent", cg.Component)
+IohcCover            = iohomecontrol_ns.class_("IohcCover", cover.Cover)
 
 # Button classes
 IohcScanButton      = iohomecontrol_ns.class_("IohcScanButton",      button.Button, cg.Component)
@@ -62,6 +63,10 @@ CONF_OTHER_FILE     = "other_devices_file"
 CONF_RADIO_PLATFORM = "radio_platform"
 CONF_REMOTES        = "remotes"
 CONF_DEVICES        = "devices"
+CONF_COVERS         = "covers"
+CONF_DEVICE_ID      = "device_id"
+CONF_TARGET_DEVICE  = "target_device"
+CONF_DEVICE_NAME    = "device_name"
 
 SCAN_BUTTON_SCHEMA      = button.button_schema(IohcScanButton)
 ADD_BUTTON_SCHEMA       = button.button_schema(IohcAddButton)
@@ -74,6 +79,12 @@ REMOTE_MAP_SCHEMA = cv.Schema({
     cv.Required(CONF_DEVICES): cv.ensure_list(cv.string),
 })
 
+STATIC_COVER_SCHEMA = cv.Schema({
+    cv.GenerateID(): cv.declare_id(IohcCover),
+    cv.Required(CONF_DEVICE_ID): cv.string,
+    cv.Optional(CONF_NAME): cv.string,
+})
+
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(IohcGatewayComponent),
     cv.Optional(CONF_RADIO_PLATFORM, default="sx1276"): cv.one_of("sx1276", "cc1101", lower=True),
@@ -83,12 +94,15 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_NSS_PIN):   cv.int_,
     cv.Optional(CONF_RESET_PIN, default=-1): cv.int_,
     cv.Optional(CONF_DIO0_PIN, default=-1):  cv.int_,
-    cv.Optional(CONF_DIO1_PIN, default=-1): cv.int_,
+    cv.Optional(CONF_DIO1_PIN, default=-1):  cv.int_,
     cv.Optional(CONF_FREQUENCY,    default=868950000):  cv.int_,
     cv.Optional(CONF_DEVICES_FILE, default="/1W.json"): cv.string,
-    cv.Optional(CONF_COZY_FILE, default="/2W.json"): cv.string,
-    cv.Optional(CONF_OTHER_FILE, default="/other_2w.json"): cv.string,
+    cv.Optional(CONF_COZY_FILE,    default="/2W.json"): cv.string,
+    cv.Optional(CONF_OTHER_FILE,   default="/other_2w.json"): cv.string,
+    cv.Optional(CONF_TARGET_DEVICE, default=""): cv.string,
+    cv.Optional(CONF_DEVICE_NAME,   default=""): cv.string,
     cv.Optional(CONF_REMOTES): cv.ensure_list(REMOTE_MAP_SCHEMA),
+    cv.Optional(CONF_COVERS):  cv.ensure_list(STATIC_COVER_SCHEMA),
     cv.Optional(CONF_RSSI_SENSOR): sensor.sensor_schema(
         unit_of_measurement=UNIT_DECIBEL,
         device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -111,7 +125,7 @@ CONFIG_SCHEMA = cv.Schema({
 async def to_code(config):
     cg.add_library("Preferences", None)
     cg.add_library("LittleFS", None)
-    
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -127,12 +141,23 @@ async def to_code(config):
     cg.add(var.set_cozy_file(config[CONF_COZY_FILE]))
     cg.add(var.set_other_file(config[CONF_OTHER_FILE]))
     cg.add(var.set_radio_platform(config[CONF_RADIO_PLATFORM]))
+    cg.add(var.set_target_device(config[CONF_TARGET_DEVICE]))
+    cg.add(var.set_device_name(config[CONF_DEVICE_NAME]))
 
     if CONF_REMOTES in config:
         for remote in config[CONF_REMOTES]:
-            name = remote[CONF_NAME]
-            devices = remote[CONF_DEVICES]
-            cg.add(var.add_remote_map(name, devices))
+            cg.add(var.add_remote_map(remote[CONF_NAME], remote[CONF_DEVICES]))
+
+    if CONF_COVERS in config:
+        for cov_conf in config[CONF_COVERS]:
+            device_id = cov_conf[CONF_DEVICE_ID]
+            name      = cov_conf.get(CONF_NAME, "iohc_" + device_id)
+            cov = cg.new_Pvariable(cov_conf[CONF_ID], device_id,
+                                   cg.RawExpression("&" + str(config[CONF_ID]) + "->get_gateway()"))
+            cov.set_name(name)
+            cov.set_object_id("iohc_" + device_id)
+            await cover.register_cover(cov, cov_conf)
+            cg.add(var.register_cover(cov))
 
     if CONF_RSSI_SENSOR in config:
         sens = await sensor.new_sensor(config[CONF_RSSI_SENSOR])
@@ -174,6 +199,7 @@ async def to_code(config):
         await button.register_button(btn, config[CONF_RELOAD_BTN])
         cg.add(var.set_reload_button(btn))
 
+
 @automation.register_action(
     "iohomecontrol.scan",
     ScanAction,
@@ -185,6 +211,7 @@ async def scan_action_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
     cg.add(var.set_parent(parent))
     return var
+
 
 @automation.register_action(
     "iohomecontrol.add",
@@ -203,6 +230,7 @@ async def add_action_to_code(config, action_id, template_arg, args):
     cg.add(var.set_target(template_))
     return var
 
+
 @automation.register_action(
     "iohomecontrol.remove",
     RemoveAction,
@@ -220,6 +248,7 @@ async def remove_action_to_code(config, action_id, template_arg, args):
     cg.add(var.set_target(template_))
     return var
 
+
 @automation.register_action(
     "iohomecontrol.new_remote",
     NewRemoteAction,
@@ -236,6 +265,7 @@ async def new_remote_action_to_code(config, action_id, template_arg, args):
     template_ = await cg.templatable(config[CONF_NAME], args, cg.std_string)
     cg.add(var.set_name(template_))
     return var
+
 
 @automation.register_action(
     "iohomecontrol.reload",

@@ -1,194 +1,198 @@
-<img src="https://github.com/user-attachments/assets/f6b606a1-0eca-4fd6-a509-d5d1136b2d31" alt="smlogo" width="50"/>
+# miopen-esphome
 
-# IO-Homecontrol ESP32 Project
+Native ESPHome component for **io-homecontrol** (Somfy, Velux, Roto) roller blinds and shutters.
 
-Based on the wonderful work of:
-
-[Velocet/iown-homecontrol](https://github.com/Velocet/iown-homecontrol)  
-[cridp/iown-homecontrol-esp32sx1276](https://github.com/cridp/iown-homecontrol-esp32sx1276)
-
-Please be advised that the modification to this code have mainly be focussing on the 1W communication with the screen. Certain modification have made the 2W part of the code "unstable". Please notice if the code is used as a furhter base.
-
-[☕ Support the project on BuyMeACoffee](https://buymeacoffee.com/dyna_mite)
+Control your io-homecontrol screens directly from Home Assistant — no cloud, no MQTT broker, no custom firmware. Just a cheap SX1276 radio module wired to an ESP32 and a few lines of YAML.
 
 ---
 
-### 📖 Documentation & Wiki
-[- Dutch & English help ](https://github.com/rspaargaren/iohomecontrol/wiki)
+## Features
+
+- Full open/close/stop/position control from Home Assistant
+- Native ESPHome API — real-time, no MQTT needed
+- Pair new screens wirelessly from HA
+- Persistent device storage on LittleFS (survives reboots)
+- Live RSSI, RX/TX counters, status sensors
+- OTA updates via ESPHome dashboard
+- Automations via standard ESPHome `on_` triggers
+- 1W protocol support (Somfy io / Velux KLF)
 
 ---
 
-### **Disclaimer**  
-Tool designed for educational and testing purposes, provided "as is", without warranty of any kind. Creators and contributors are not responsible for any misuse or damage caused by this tool.
+## Hardware
 
-_I don't give any support, especially concerning the obsolete 1W part._
+Any ESP32 board with an SX1276/SX1278 868 MHz LoRa module works. Tested boards:
 
-This code doesn’t use the RadioLib. Even if it’s perfect for a start, it doesn’t allow to be as fast as possible.
+| Board | Notes |
+|---|---|
+| LilyGo TTGO LoRa32 | Recommended — integrated SX1276 |
+| Heltec WiFi LoRa 32 | Works, set pins accordingly |
+| Generic ESP32 + RA-02 | Wire SPI manually |
 
----
+### SPI wiring (LilyGo TTGO LoRa32 example)
 
-### Documentation
-This code was intentionally written with all possible details found in the protocol documentation.  
-- (i.e., there are 3 different CRCs, 3 different AES implementations, all detailed)  
-- This allows those with little knowledge of C/CPP to understand the sequence of each command.  
-- All these details require you to carefully read the work of @Velocet to understand this protocol.  
-- There is no magic documentation; only personal work to adapt to your own needs.  
-- But all the functional basics for 1W and 2W are there.  
-- All AES implementations are included, without using an external library.  
-- All 1W / 2W commands for pairing/associating are included as well.  
-
----
-
-### Usage
-Use it like a scanner, perform some commands on your real device to identify the corresponding CMDid and address.  
-
-→ Choose your board before build.  
+| SX1276 pin | ESP32 GPIO |
+|---|---|
+| SCK | 5 |
+| MISO | 19 |
+| MOSI | 27 |
+| NSS / CS | 18 |
+| RESET | 14 |
+| DIO0 | 26 |
+| DIO2 | 34 |
 
 ---
 
-### Brief explanation[^1]:
-Uses 2 interrupts:  
-- if PAYLOAD and RX → decode the frame [^3]  
-- if PAYLOAD and TX_READY → send the frame, decode it [^3]  
+## Installation
 
----
+Add this repository as an ESPHome external component:
 
-### platformio[^2] :
-_First time or when a JSON in data folder is modified:_  
-1. build filesystem image  
-2. upload filesystem image  
-
-_After any other changes:_  
-- upload and monitor  
-- make sure `CONFIG_ESP_TIMER_SUPPORTS_ISR_DISPATCH_METHOD` remains enabled in `sdkconfig` so ESP timers can run callbacks from ISR context  
-
-[^1]: I use an SX1276. If CC1101/SX1262: Feel free to use the old code (not checked/guaranteed).  
-[^2]: I use Visual Studio Code Insider.  
-[^3]: Decoding can be verbose (RSSI, Timing, …).  
-
----
-
-## Web Interface (Experimental)
-
-This project now includes an experimental web interface to control IOHC devices.
-
-### Setup & Access
-1. **Configure WiFi** – on first boot the device starts an access point named `iohc-setup`.  
-   Connect and follow the WiFiManager portal to enter your WiFi credentials.  
-2. **Build and Upload Filesystem** – upload web files in `extras/web_interface_data/` via LittleFS.  
-3. **Build and Upload Firmware** – flash main firmware with PlatformIO.  
-4. **Find ESP32 IP** – check Serial Monitor for IP.  
-5. **Access the Interface** – open browser at IP or `http://miopenio.local` if mDNS is supported.  
-
-
-1.  **Configure WiFi:**
-    *   On first boot the device starts an access point named `iohc-setup`.
-    *   Connect to this AP and follow the WiFiManager captive portal to enter
-        your WiFi credentials.
-
-2.  **Build and Upload Filesystem:**
-    *   The web interface files (`index.html`, `style.css`, `script.js`) are located in `extras/web_interface_data/`.
-    *   These files need to be uploaded to the ESP32's LittleFS filesystem.
-    *   Using PlatformIO:
-        *   First, build the filesystem image: `pio run --target buildfs` (or use the PlatformIO IDE option for building the filesystem image).
-        *   Then, upload the filesystem image: `pio run --target uploadfs` (or use the PlatformIO IDE option for uploading).
-    *   **Note:** You only need to rebuild and re-upload the filesystem image if you make changes to the files in `extras/web_interface_data/`.
-    *   **Device files:** Copy your device definition files (for example `extras/1W.json`) into the LittleFS root before building.
-        Without these files the `/api/devices` endpoint returns an empty list and the web interface will show no devices.
-
-3.  **Build and Upload Firmware:**
-    *   Build and upload the main firmware to your ESP32 as usual using PlatformIO (`pio run --target upload` or via the IDE).
-
-4.  **Find ESP32 IP Address:**
-    *   After uploading, open the Serial Monitor.
-    *   When the ESP32 connects to your WiFi network, it will print its IP address. Look for a line like: `Connected to WiFi. IP Address: XXX.XXX.X.XXX`.
-
-5.  **Access the Interface:**
-    *   Open a web browser on a device connected to the same WiFi network as your ESP32.
-    *   Navigate to the IP address you found in the Serial Monitor (e.g., `http://XXX.XXX.X.XXX`) or use `http://miopenio.local` if your network supports mDNS.
-
-### Usage
-
-The web interface allows you to:
-
-*   **View a list of devices:** The device list is currently populated with placeholder examples. (Future development will integrate this with actual detected/configured devices).
-*   **Send commands:** Select a device, type a command string (e.g., `setTemp 21.0`), and click "Send". (Command processing is currently a placeholder and will acknowledge receipt).
-*   **Live updates:** Logs and device positions are pushed to the browser via WebSockets.
-
-This feature is under development, and functionality will be expanded in the future.
-
-
-## Home Assistant Discovery
-
-When MQTT is enabled (`#define MQTT` in `include/user_config.h`), the firmware publishes HA discovery messages for every blind.  
-
-
-The `1W.json` file now accepts an optional `travel_time` field per device. This value represents the time in seconds a blind takes to move from fully closed to fully open. It allows the firmware to estimate the current position when no feedback is available. The estimated position is printed to the serial console and shown on the OLED display every second while the blind is moving. When a command is transmitted or received, this position feedback is appended below the action information on the display so that the original message remains visible.
-If these fields (`name` and `travel_time`) are missing, default values are applied using the device description and a 10 second travel time. These defaults are saved back to `1W.json` so subsequent boots load the updated values automatically.
-
-Each blind also publishes a Home Assistant number entity for the travel time. Adjusting this entity updates the `travel_time` value in `1W.json`, allowing calibration directly from the Home Assistant UI without editing files manually.
-
-Each entry can also contain a `paired` boolean that indicates if the blind is paired to a screen. If the field is missing, it is automatically added with a default value of `false` when the file is loaded. The flag is updated automatically when the `pair` or `remove` commands are used.
-
-Sequence numbers for each remote are stored both in `extras/1W.json` and in NVS.
-On boot the value from the file is compared to the one in NVS and the highest
-value is kept so sequence numbers continue uninterrupted even after filesystem
-uploads or resets.
-
-
-It supports `travel_time`, pairing state, and sequence numbers.  
-
-Example payload:  
-```json
-{"name":"IZY1","command_topic":"iown/B60D1A/set","state_topic":"iown/B60D1A/state","position_topic":"iown/B60D1A/position","set_position_topic":"iown/B60D1A/position/set","unique_id":"B60D1A","payload_open":"OPEN","payload_close":"CLOSE","payload_stop":"STOP","device_class":"blind","availability_topic":"iown/status"}
+```yaml
+external_components:
+  - source:
+      type: git
+      url: https://github.com/NH-Networks/miopen-esphome
+      ref: main
+    components: [iohomecontrol]
 ```
 
+---
 
-For each blind the firmware also publishes MQTT button entities that allow
-executing pairing or controller management commands directly from Home Assistant.
-The discovery topics are:
+## Minimal YAML example
 
-- `homeassistant/button/<id>_pair/config`
-- `homeassistant/button/<id>_add/config`
-- `homeassistant/button/<id>_remove/config`
+```yaml
+esphome:
+  name: iohc-gateway
+  platform: ESP32
+  board: ttgo-lora32-v1
 
-Each blind along with its control buttons is exposed as an individual device in
-Home Assistant, so the gateway no longer groups all entities into a single
-device list.
+external_components:
+  - source:
+      type: git
+      url: https://github.com/NH-Networks/miopen-esphome
+      ref: main
+    components: [iohomecontrol]
 
-Sending `PRESS` to `iown/<id>/pair`, `iown/<id>/add` or `iown/<id>/remove`
-triggers the corresponding command on the blind.
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
 
-Configure your MQTT broker settings in `include/user_config.h` (`mqtt_server`, `mqtt_user`, `mqtt_password`, `mqtt_discovery_topic`). These values can also be changed at runtime via the `mqttIp`, `mqttUser`, `mqttPass` and `mqttDiscovery` commands. After boot and connection, Home Assistant should automatically discover the covers.
+api:
+ota:
+  platform: esphome
 
-If you don't have an OLED display connected, comment out the `DISPLAY` definition in `include/user_config.h` to disable all display related code.
+iohomecontrol:
+  # SPI pins for your SX1276 module
+  sck_pin: 5
+  miso_pin: 19
+  mosi_pin: 27
+  nss_pin: 18
+  reset_pin: 14
+  dio0_pin: 26
+  dio1_pin: 34
 
-Once discovery is complete you can control a blind by publishing `OPEN`, `CLOSE`
-or `STOP` to `iown/<id>/set`, or a number between `0` (closed) and `100` (open) to
-`iown/<id>/position/set` to move the blind to a specific position. The firmware
-now uses the device's absolute positioning for these percentage commands, providing
-more accurate movement. For direct access to the raw absolute command where `0`
-means fully open and `100` fully closed, publish to `iown/<id>/absolute/set`.
-When an `OPEN` or `CLOSE` command is received, it immediately publishes the new
-state (`open` or `closed`) to `iown/<id>/state` so Home Assistant can update the
-cover status.
+  # EU frequency — change to 433950000 for non-EU io-homecontrol
+  frequency: 868950000
 
-While a blind is in motion the current position percentage is published every
-second to `iown/<id>/position`. The `state` topic is also updated with
-`OPENING`, `CLOSING` or `STOP` depending on the movement. When the blind stops
-moving, the state reverts to `OPEN`, `CLOSE` or `STOP` according to the final
-position.
+  # Target device ID for Add/Remove buttons (6-char hex node address)
+  # Read it from the 'last_addr_sensor' after pressing a button on the screen.
+  target_device: ""
 
-The gateway publishes `online` every minute to `iown/status` and has a Last Will
-configured to send `offline` on the same topic if it disconnects unexpectedly.
-Home Assistant uses this message to mark all covers as unavailable when the
-gateway goes offline.
+  # Name for new virtual remote (used by new_remote_button)
+  device_name: ""
 
+  # Diagnostic sensors
+  rssi_sensor:
+    name: "IOHC RSSI"
+  rx_counter:
+    name: "IOHC RX frames"
+  tx_counter:
+    name: "IOHC TX frames"
+  status_sensor:
+    name: "IOHC Status"
+  last_addr_sensor:
+    name: "IOHC Last address"
+  pending_sensor:
+    name: "IOHC Pending device"
 
-#### **License**
+  # Pairing control buttons
+  scan_button:
+    name: "Scan for screens"
+  new_remote_button:
+    name: "Create virtual remote"
+  add_button:
+    name: "Add screen"
+  remove_button:
+    name: "Remove screen"
+  reload_button:
+    name: "Reload devices"
 
-Image [miopen.io](https://miopen.io) © 2025 by [djbenbe](https://creativecommons.org) is licensed under [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/)
-<img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="CC" style="width:0.2em; height:0.2em; margin-left:.2em;">
-<img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="BY" style="width:0.2em; height:0.2em;margin-left:.2em;">
-<img src="https://mirrors.creativecommons.org/presskit/icons/nc.svg" alt="NC" style="width:0.2em; height:0.2em; margin-left:.2em;">
-<img src="https://mirrors.creativecommons.org/presskit/icons/nd.svg" alt="ND" style="width:0.2em; height:0.2em; margin-left:.2em;">
+  # Optional: statically declare known covers so they appear in HA
+  # even before the first state update. device_id is the hex node address.
+  # covers:
+  #   - device_id: a1b2c3
+  #     name: Living Room Blind
+  #   - device_id: d4e5f6
+  #     name: Bedroom Blind
+```
+
+---
+
+## Pairing a new screen
+
+1. In Home Assistant, go to **Developer Tools → Services** (or use the button entities).
+2. Set **IOHC device_name** text input to a friendly name for the screen (e.g. `Living Room`).
+3. Press **Create virtual remote** — this allocates a new 3-byte node address and stores it.
+4. Put the screen into pairing mode (hold the screen's programming button until it jogs).
+5. Set **IOHC target_device** to the screen’s node address (visible in **IOHC Pending device** sensor after step 4).
+6. Press **Add screen** — the gateway sends the pairing frame.
+7. The screen jogs to confirm. A new cover entity appears automatically in Home Assistant.
+8. Press **Reload devices** to persist the pairing across reboots.
+
+---
+
+## HA Automation example
+
+Close all blinds at sunset:
+
+```yaml
+automation:
+  - alias: Close blinds at sunset
+    trigger:
+      - platform: sun
+        event: sunset
+    action:
+      - service: cover.close_cover
+        target:
+          entity_id: cover.living_room_blind
+```
+
+---
+
+## FAQ
+
+**Which protocol versions are supported?**  
+1W (standard Somfy io / Velux KLF) is fully supported. 2W (Somfy TaHoma bi-directional) is partially supported — position feedback works but full key exchange is experimental.
+
+**My screens don’t appear in HA after pairing.**  
+Make sure you pressed **Reload devices** after pairing. If they still don’t appear, check the ESPHome logs for `Cover registered:` messages and verify the `status_sensor` value.
+
+**Can I use CC1101 instead of SX1276?**  
+Yes — set `radio_platform: cc1101` in your YAML. Pin assignments follow the same SPI keys.
+
+**The gateway compiles but the radio does not initialise.**  
+Check your SPI wiring, especially NSS and RESET. The RESET pin must be pulled high before the SPI bus is active — verify with a multimeter.
+
+**Covers show as `unknown` after boot.**  
+This is normal. The component uses estimated position tracking — position is only updated after the first open/close command or a received frame. Declare covers statically under `covers:` to pre-register them.
+
+---
+
+## Credits
+
+Protocol implementation based on [cridp/miopen](https://github.com/cridp/miopen) — the original io-homecontrol research and reverse engineering.  
+ESPHome component wrapper by [NH-Networks](https://github.com/NH-Networks).
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE).
