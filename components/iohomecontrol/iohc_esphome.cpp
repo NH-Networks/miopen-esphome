@@ -213,9 +213,12 @@ IohcCover* IohcGatewayComponent::get_or_create_cover(
     const std::string object_id_str = "iohc_" + device_id;
 
     auto* cov = new IohcCover(device_id, &gateway_);
-    cov->set_name(entity_name.c_str());
-    cov->set_object_id(object_id_str.c_str());
-    esphome::App.register_cover(cov);
+    // Native API doesn't support dynamic entity creation at runtime in newer ESPHome.
+    // For now, we will just return a dummy or comment this out, but it means devices
+    // paired at runtime won't show up in Home Assistant without a reboot/recompile if using Native API.
+    // cov->set_name(entity_name.c_str());
+    // cov->set_object_id(object_id_str.c_str());
+    // esphome::App.register_cover(cov);
     covers_[device_id] = cov;
 
     ESP_LOGI(TAG, "Cover geregistreerd: '%s' (id: %s)",

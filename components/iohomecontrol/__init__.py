@@ -13,7 +13,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
 )
 
-AUTO_LOAD = ["cover", "button", "sensor", "text_sensor", "web_server_base"]
+AUTO_LOAD = ["cover", "button", "sensor", "text_sensor", "web_server_base", "spi"]
 
 iohomecontrol_ns = cg.global_ns.namespace("iohomecontrol")
 
@@ -109,6 +109,9 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 async def to_code(config):
+    cg.add_library("Preferences", None)
+    cg.add_library("LittleFS", None)
+    
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

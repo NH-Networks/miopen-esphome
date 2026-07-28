@@ -149,6 +149,13 @@ public:
     const std::string& target_device() const         { return target_device_; }
     const std::string& device_name()   const         { return device_name_;   }
 
+    IohcGateway* get_gateway() { return &gateway_; }
+    void register_cover(IohcCover* cov) {
+        if (cov != nullptr) {
+            covers_[cov->device_id()] = cov;
+        }
+    }
+
     void cmd_scan()                                  { gateway_.cmd_scan(); }
     void cmd_add(const std::string& target)          { gateway_.cmd_add(target); }
     void cmd_remove(const std::string& target)       { gateway_.cmd_remove(target); }
@@ -198,7 +205,8 @@ template<typename... Ts> class ScanAction : public esphome::Action<Ts...> {
 template<typename... Ts> class AddAction : public esphome::Action<Ts...> {
  public:
   explicit AddAction(IohcGatewayComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, target)
+  esphome::TemplatableValue<std::string, Ts...> target_;
+  template<typename V> void set_target(V target) { this->target_ = target; }
   void play(Ts... x) override {
     auto target = this->target_.value(x...);
     this->parent_->cmd_add(target);
@@ -210,7 +218,8 @@ template<typename... Ts> class AddAction : public esphome::Action<Ts...> {
 template<typename... Ts> class RemoveAction : public esphome::Action<Ts...> {
  public:
   explicit RemoveAction(IohcGatewayComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, target)
+  esphome::TemplatableValue<std::string, Ts...> target_;
+  template<typename V> void set_target(V target) { this->target_ = target; }
   void play(Ts... x) override {
     auto target = this->target_.value(x...);
     this->parent_->cmd_remove(target);
@@ -222,7 +231,8 @@ template<typename... Ts> class RemoveAction : public esphome::Action<Ts...> {
 template<typename... Ts> class NewRemoteAction : public esphome::Action<Ts...> {
  public:
   explicit NewRemoteAction(IohcGatewayComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, name)
+  esphome::TemplatableValue<std::string, Ts...> name_;
+  template<typename V> void set_name(V name) { this->name_ = name; }
   void play(Ts... x) override {
     auto name = this->name_.value(x...);
     this->parent_->cmd_new_remote(name);

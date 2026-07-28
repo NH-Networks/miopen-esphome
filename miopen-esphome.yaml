@@ -53,7 +53,7 @@ web_server:
 
 # ── External component ───────────────────────────────────────
 external_components:
-  - source: github://NH-Networks/miopen-esphome
+  - source: components
     components: [iohomecontrol]
 
 # ── iohomecontrol gateway ────────────────────────────────────
@@ -154,3 +154,11 @@ button:
 time:
   - platform: homeassistant
     id: ha_time
+
+# ── Cover entities ─────────────────────────────────────────────
+cover:
+  - platform: iohomecontrol
+    iohomecontrol_id: iohc_gw
+    name: "Test Rolluik"
+    device_id: "010203"
+
