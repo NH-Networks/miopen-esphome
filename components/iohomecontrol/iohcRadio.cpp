@@ -929,18 +929,6 @@ bool queueCallback(IohcPacketDelegate* callback, iohcPacket* packet) {
                                    " overflow=" + String(rxOverflow ? "yes" : "no") +
                                    " raw=" + raw;
             const bool logInvalidRx = !twoWScanActive || millis() - lastInvalidRxLogMs >= 5000UL;
-#if defined(WEBSERVER)
-            if (isTwoW || logInvalidRx) {
-                updateTwoWRxStatus(
-                    "RAW invalid",
-                    "-",
-                    "-",
-                    "-",
-                    details,
-                    String(iohc->frequency)
-                );
-            }
-#endif
             if (logInvalidRx) {
                 lastInvalidRxLogMs = millis();
                 addLogMessage("Radio RX invalid frame " + details);

@@ -52,7 +52,6 @@ namespace Radio {
 #if defined(ESP32)
         SPI.begin(RADIO_SCLK, RADIO_MISO, RADIO_MOSI, RADIO_NSS);
 #endif
-        SPI.setHwCs(true);
 
         pinMode(RADIO_NSS, OUTPUT);
         pinMode(RADIO_RESET, OUTPUT);
@@ -188,7 +187,7 @@ namespace Radio {
         SPI_beginTransaction();
         SPI.transfer(regAddr);
         for (uint8_t idx = 0; idx < len; ++idx) {
-            out[idx] = SPI.transfer(regAddr);
+            out[idx] = SPI.transfer(0x00);
         }
         SPI_endTransaction();
     }
@@ -209,7 +208,7 @@ namespace Radio {
             SPI_beginTransaction();
             SPI.transfer(regAddr);
             for (uint8_t idx = 0; idx < len; ++idx) {
-                uint8_t getByte = SPI.transfer(regAddr);
+                uint8_t getByte = SPI.transfer(0x00);
                 if (in[idx] != getByte) {
                     SPI_endTransaction();
                     return false;

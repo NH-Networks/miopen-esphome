@@ -60,6 +60,8 @@
 #define RADIO_DIO0_PIN      26
 #define RADIO_RST_PIN       14
 #define BOARD_LED_PIN       25
+#define RADIO_DIO1_PIN      33
+#define RADIO_DIO2_PIN      34
 #endif
 
 #if defined(LILYGO_T3S3)
