@@ -1,20 +1,18 @@
-#include <Arduino.h>
 #include "SX1276Helpers.h"
 #include "board-config.h"
 
 #if defined(RADIO_SX127X)
 #include <map>
 
-#if defined(ESP8266)
-#elif defined(ESP32)
-#define CONFIG_DISABLE_HAL_LOCKS true
-#include "TickerUsESP32.h"
+#include <driver/spi_master.h>
+#include <driver/gpio.h>
+#include <rom/ets_sys.h>
 #include <esp_task_wdt.h>
-#include <SPI.h>
-#endif
+#include "TickerUsESP32.h"
 
 namespace Radio {
-    SPISettings SpiSettings(4000000, MSBFIRST, SPI_MODE0);
+    static spi_device_handle_t _spi = nullptr;
+    int g_nss_pin = -1;
 
     std::map<uint8_t, regBandWidth> __bw =
     {
@@ -26,46 +24,66 @@ namespace Radio {
         {250, {0x00, 0x01}}
     };
 
-    int g_nss_pin = -1;
-
     void IRAM_ATTR SPI_beginTransaction() {
-        SPI.beginTransaction(Radio::SpiSettings);
-        digitalWrite(g_nss_pin, LOW);
+        gpio_set_level((gpio_num_t) g_nss_pin, 0);
     }
 
     void IRAM_ATTR SPI_endTransaction() {
-        digitalWrite(g_nss_pin, HIGH);
-        SPI.endTransaction();
+        gpio_set_level((gpio_num_t) g_nss_pin, 1);
     }
 
     void initHardware(int nss, int rst, int sck, int miso, int mosi) {
         g_nss_pin = nss;
         printf("\nSPI Init");
-        pinMode(miso, INPUT_PULLUP);
-        pinMode(rst, INPUT);
 
-        while (!digitalRead(rst)) {
-#if defined(ESP32)
+        // Configure MISO with pull-up
+        gpio_config_t io_conf = {};
+        io_conf.pin_bit_mask = (1ULL << miso);
+        io_conf.mode = GPIO_MODE_INPUT;
+        io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+        gpio_config(&io_conf);
+
+        // RST as input first to wait for POR
+        io_conf.pin_bit_mask = (1ULL << rst);
+        io_conf.mode = GPIO_MODE_INPUT;
+        io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+        gpio_config(&io_conf);
+
+        while (!gpio_get_level((gpio_num_t) rst)) {
             esp_task_wdt_reset();
-#endif
-            delayMicroseconds(1);
+            ets_delay_us(1);
         }
-        delayMicroseconds(BOARD_READY_AFTER_POR);
+        ets_delay_us(BOARD_READY_AFTER_POR);
 
-#if defined(ESP32)
-        SPI.begin(sck, miso, mosi, nss);
-#endif
+        // Configure SPI bus
+        spi_bus_config_t buscfg = {};
+        buscfg.mosi_io_num   = mosi;
+        buscfg.miso_io_num   = miso;
+        buscfg.sclk_io_num   = sck;
+        buscfg.quadwp_io_num = -1;
+        buscfg.quadhd_io_num = -1;
+        buscfg.max_transfer_sz = 64;
+        spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
 
-        pinMode(nss, OUTPUT);
-        pinMode(rst, OUTPUT);
-        digitalWrite(rst, HIGH);
-        digitalWrite(nss, HIGH);
-        delayMicroseconds(BOARD_READY_AFTER_POR);
+        // Attach device — CS managed manually via NSS pin
+        spi_device_interface_config_t devcfg = {};
+        devcfg.clock_speed_hz = 4000000;
+        devcfg.mode           = 0;       // SPI_MODE0
+        devcfg.spics_io_num   = -1;      // manual CS
+        devcfg.queue_size     = 4;
+        spi_bus_add_device(SPI2_HOST, &devcfg, &_spi);
+
+        // NSS and RST as outputs
+        gpio_set_direction((gpio_num_t) nss, GPIO_MODE_OUTPUT);
+        gpio_set_direction((gpio_num_t) rst, GPIO_MODE_OUTPUT);
+        gpio_set_level((gpio_num_t) rst, 1);
+        gpio_set_level((gpio_num_t) nss, 1);
+        ets_delay_us(BOARD_READY_AFTER_POR);
 
         writeByte(REG_OPMODE, RF_OPMODE_STANDBY);
 
-        pinMode(SCAN_LED, OUTPUT);
-        digitalWrite(SCAN_LED, 1);
+        gpio_set_direction((gpio_num_t) SCAN_LED, GPIO_MODE_OUTPUT);
+        gpio_set_level((gpio_num_t) SCAN_LED, 1);
         printf("\nRadio Chip is ready\n");
     }
 
@@ -183,15 +201,21 @@ namespace Radio {
     uint8_t IRAM_ATTR readByte(uint8_t regAddr) {
         uint8_t getByte;
         readBytes(regAddr, &getByte, 1);
-        return (getByte);
+        return getByte;
     }
 
     void IRAM_ATTR readBytes(uint8_t regAddr, uint8_t *out, uint8_t len) {
         SPI_beginTransaction();
-        SPI.transfer(regAddr);
-        for (uint8_t idx = 0; idx < len; ++idx) {
-            out[idx] = SPI.transfer(0x00);
-        }
+        uint8_t tx[len + 1];
+        uint8_t rx[len + 1];
+        tx[0] = regAddr & ~SPI_Write;
+        for (uint8_t i = 0; i < len; i++) tx[i + 1] = 0x00;
+        spi_transaction_t t = {};
+        t.length    = (len + 1) * 8;
+        t.tx_buffer = tx;
+        t.rx_buffer = rx;
+        spi_device_polling_transmit(_spi, &t);
+        for (uint8_t i = 0; i < len; i++) out[i] = rx[i + 1];
         SPI_endTransaction();
     }
 
@@ -201,30 +225,38 @@ namespace Radio {
 
     auto IRAM_ATTR writeBytes(uint8_t regAddr, uint8_t *in, uint8_t len, bool check) -> bool {
         SPI_beginTransaction();
-        SPI.write(regAddr | SPI_Write);
-        for (uint8_t idx = 0; idx < len; ++idx) {
-            SPI.write(in[idx]);
-        }
+        uint8_t tx[len + 1];
+        tx[0] = regAddr | SPI_Write;
+        for (uint8_t i = 0; i < len; i++) tx[i + 1] = in[i];
+        spi_transaction_t t = {};
+        t.length    = (len + 1) * 8;
+        t.tx_buffer = tx;
+        t.rx_buffer = nullptr;
+        spi_device_polling_transmit(_spi, &t);
         SPI_endTransaction();
 
         if (check) {
             SPI_beginTransaction();
-            SPI.transfer(regAddr);
-            for (uint8_t idx = 0; idx < len; ++idx) {
-                uint8_t getByte = SPI.transfer(0x00);
-                if (in[idx] != getByte) {
-                    SPI_endTransaction();
-                    return false;
-                }
-            }
+            uint8_t rxbuf[len + 1];
+            uint8_t txbuf[len + 1];
+            txbuf[0] = regAddr & ~SPI_Write;
+            for (uint8_t i = 0; i < len; i++) txbuf[i + 1] = 0x00;
+            spi_transaction_t tr = {};
+            tr.length    = (len + 1) * 8;
+            tr.tx_buffer = txbuf;
+            tr.rx_buffer = rxbuf;
+            spi_device_polling_transmit(_spi, &tr);
             SPI_endTransaction();
+            for (uint8_t i = 0; i < len; i++) {
+                if (in[i] != rxbuf[i + 1]) return false;
+            }
         }
 
         return true;
     }
 
     uint16_t IRAM_ATTR readWord(uint8_t regAddr) {
-        uint8_t lowByte = readByte(regAddr);
+        uint8_t lowByte  = readByte(regAddr);
         uint8_t highByte = readByte(regAddr + 1);
         return (highByte << 8) | lowByte;
     }
@@ -237,9 +269,7 @@ namespace Radio {
     bool IRAM_ATTR inStdbyOrSleep() {
         uint8_t data = readByte(REG_OPMODE);
         data &= ~RF_OPMODE_MASK;
-        if ((data == RF_OPMODE_SLEEP) || (data == RF_OPMODE_STANDBY))
-            return true;
-        return false;
+        return (data == RF_OPMODE_SLEEP) || (data == RF_OPMODE_STANDBY);
     }
 
     bool IRAM_ATTR setCarrier(Carrier param, uint32_t value) {

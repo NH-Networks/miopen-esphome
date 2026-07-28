@@ -15,10 +15,15 @@
  */
 
 #include "iohcCozyDevice2W.h"
-#include <LittleFS.h>
 #include "iohcCryptoHelpers.h"
 #include <ArduinoJson.h>
 #include <numeric>
+#include <stdio.h>
+#include <sys/stat.h>
+#include "esp_log.h"
+
+static const char *COZY_TAG = "iohcCozy2W";
+static const char *FS_BASE  = "/littlefs";
 
 namespace IOHC {
     iohcCozyDevice2W *iohcCozyDevice2W::_iohcCozyDevice2W = nullptr;
@@ -40,7 +45,7 @@ namespace IOHC {
     * @param toSend
     */
     void iohcCozyDevice2W::forgePacket(iohcPacket *packet, const std::vector<unsigned char> &toSend) {
-        digitalWrite(RX_LED, digitalRead(RX_LED) ^ 1);
+        gpio_set_level((gpio_num_t) RX_LED, gpio_get_level((gpio_num_t) RX_LED) ^ 1);
         IOHC::relStamp.store(esp_timer_get_time());
 
         // Common Flags
@@ -62,14 +67,10 @@ namespace IOHC {
     }
 
     /**
-    * @brief Checks if this cozy our fake gateway. This is used to detect if we have an IOCHA device that is in charge of the IOCHA and should be woken up.
-    * @param nodeSrc The source node address of the IOCHA.
-    * @param nodeDst The destination node address of the IOCHA.
-    * @return true if this device is a fake false otherwise. Note that this device is not a fake
+    * @brief Checks if this cozy our fake gateway.
     */
     bool iohcCozyDevice2W::isFake(address nodeSrc, address nodeDst) {
         this->Fake = false;
-        // Fake to ensure that the node is in the same node src and dst.
         if (!memcmp(this->gateway, nodeSrc, 3) || !memcmp(this->gateway, nodeDst, 3)) { this->Fake = true; }
         return this->Fake;
     }
@@ -77,7 +78,7 @@ namespace IOHC {
     /// Emulates device button press
     void iohcCozyDevice2W::cmd(DeviceButton cmd, Tokens *data) {
         if (!_radioInstance) {
-            Serial.println("NO RADIO INSTANCE");
+            ESP_LOGE(COZY_TAG, "NO RADIO INSTANCE");
             _radioInstance = IOHC::iohcRadio::getInstance();
         }
 
@@ -98,7 +99,7 @@ namespace IOHC {
                 memcpy(packet->payload.packet.header.source, gateway, 3);
                 memcpy(packet->payload.packet.header.target, master_to, 3);
 
-                digitalWrite(RX_LED, digitalRead(RX_LED) ^ 1);
+                gpio_set_level((gpio_num_t) RX_LED, gpio_get_level((gpio_num_t) RX_LED) ^ 1);
                 _radioInstance->send(packet);
                 break;
             }
@@ -117,7 +118,7 @@ namespace IOHC {
                 memcpy(packet->payload.packet.header.source, gateway, 3);
                 memcpy(packet->payload.packet.header.target, master_to, 3);
 
-                digitalWrite(RX_LED, digitalRead(RX_LED) ^ 1);
+                gpio_set_level((gpio_num_t) RX_LED, gpio_get_level((gpio_num_t) RX_LED) ^ 1);
                 _radioInstance->send(packet);
 
                 break;
@@ -142,14 +143,12 @@ namespace IOHC {
                 packet->payload.packet.header.CtrlByte1.asStruct.StartFrame = 1;
 
                 memcpy(packet->payload.packet.header.source, gateway, 3);
-                memcpy(packet->payload.packet.header.target, addresses.at(addr).data()/* 0 Master_to*/, 3);
+                memcpy(packet->payload.packet.header.target, addresses.at(addr).data(), 3);
 
                 packet->delayed = 50;
 
-                digitalWrite(RX_LED, digitalRead(RX_LED) ^ 1);
+                gpio_set_level((gpio_num_t) RX_LED, gpio_get_level((gpio_num_t) RX_LED) ^ 1);
                 _radioInstance->send(packet);
-                //                mqttClient.publish("iown/Frame", 0, false, message.c_str(), messageSize);
-
                 break;
             }
             case DeviceButton::setMode: {
@@ -159,12 +158,7 @@ namespace IOHC {
                 if (strcasecmp(dat, "auto") == 0) toSend[4] = 0x00;
                 if (strcasecmp(dat, "manual") == 0) toSend[4] = 0x01;
                 if (strcasecmp(dat, "prog") == 0) toSend[4] = 0x02;
-                // if (strcasecmp(data, "special") == 0) toSend[4] = 0x03;
-                if (strcasecmp(dat, "off") == 0) toSend[4] = 0x04; // TODO if mode off, disable setPresence
-
-                // int addr = 0;
-                // if (data->size() == 2) addr = 0;
-                // else addr = std::stoi(data->at(2));
+                if (strcasecmp(dat, "off") == 0) toSend[4] = 0x04;
 
                 size_t dest = 0;
 
@@ -180,13 +174,12 @@ namespace IOHC {
 
                     packet->payload.packet.header.CtrlByte1.asStruct.StartFrame = 1;
                     memcpy(packet->payload.packet.header.source, gateway, 3);
-                    memcpy(packet->payload.packet.header.target,
-                           addresses.at(dest/*addr*/).data()/* 0 Master_to*/, 3);
+                    memcpy(packet->payload.packet.header.target, addresses.at(dest).data(), 3);
 
                     dest++;
                 }
                 packets2send[1]->delayed = 250;
-                digitalWrite(RX_LED, digitalRead(RX_LED) ^ 1);
+                gpio_set_level((gpio_num_t) RX_LED, gpio_get_level((gpio_num_t) RX_LED) ^ 1);
 
                 _radioInstance->send(packets2send);
 
@@ -211,7 +204,7 @@ namespace IOHC {
                 memcpy(packet->payload.packet.header.source, gateway, 3);
                 memcpy(packet->payload.packet.header.target, master_to, 3);
 
-                digitalWrite(RX_LED, digitalRead(RX_LED) ^ 1);
+                gpio_set_level((gpio_num_t) RX_LED, gpio_get_level((gpio_num_t) RX_LED) ^ 1);
                 _radioInstance->send(packet);
                 break;
             }
@@ -236,18 +229,16 @@ namespace IOHC {
                 packet->payload.packet.header.CtrlByte1.asStruct.StartFrame = 1;
 
                 memcpy(packet->payload.packet.header.source, gateway, 3);
-                memcpy(packet->payload.packet.header.target, addresses.at(addr).data()/* 0 Master_to*/, 3);
+                memcpy(packet->payload.packet.header.target, addresses.at(addr).data(), 3);
 
                 packet->delayed = 50;
 
-                digitalWrite(RX_LED, digitalRead(RX_LED) ^ 1);
+                gpio_set_level((gpio_num_t) RX_LED, gpio_get_level((gpio_num_t) RX_LED) ^ 1);
                 _radioInstance->send(packet);
                 break;
             }
             case DeviceButton::midnight: {
-                // std::vector<uint8_t> toSend = {0x00, 0x0c, 0x00, 0x00, 0x03, 0x00, 0x00, 0x01, 0x53};
                 std::vector<uint8_t> toSend = {0x0c, 0x60, 0x01, 0x30};
-                //, 0x2b, 0x05, 0x00, 0x0f, 0x04, 0x0c, 0xe7, 0x07};
 
                 auto *packet = new iohcPacket;
                 forgePacket(packet, toSend);
@@ -261,7 +252,7 @@ namespace IOHC {
                 memcpy(packet->payload.packet.header.source, gateway, 3);
                 memcpy(packet->payload.packet.header.target, master_to, 3);
 
-                digitalWrite(RX_LED, digitalRead(RX_LED) ^ 1);
+                gpio_set_level((gpio_num_t) RX_LED, gpio_get_level((gpio_num_t) RX_LED) ^ 1);
                 _radioInstance->send(packet);
 
                 break;
@@ -270,70 +261,63 @@ namespace IOHC {
             default: break;
         } // switch (cmd)
         IOHC::packetStamp.store(esp_timer_get_time());
-        //        save(); // Save Cozy associated devices
     }
 
     /**
-    * @brief Load Cozy 2W settings from file and store in _radioInstance.
-    * @return True if successful false otherwise. This is a blocking call
+    * @brief Load Cozy 2W settings from file.
     */
     bool iohcCozyDevice2W::load() {
         _radioInstance = iohcRadio::getInstance();
-        // Load Cozy 2W device settings from file
-        if (LittleFS.exists(COZY_2W_FILE))
-            Serial.printf("Loading Cozy 2W devices settings from %s\n", COZY_2W_FILE);
-        else {
-            Serial.printf("*2W Cozy devices not available\n");
+
+        char full_path[512];
+        snprintf(full_path, sizeof(full_path), "%s%s", FS_BASE, COZY_2W_FILE);
+
+        struct stat st{};
+        if (stat(full_path, &st) != 0) {
+            ESP_LOGW(COZY_TAG, "*2W Cozy devices not available");
+            return false;
+        }
+        ESP_LOGI(COZY_TAG, "Loading Cozy 2W devices settings from %s", full_path);
+
+        FILE *f = fopen(full_path, "r");
+        if (!f) {
+            ESP_LOGE(COZY_TAG, "Failed to open %s", full_path);
             return false;
         }
 
-        fs::File f = LittleFS.open(COZY_2W_FILE, "r", true);
         JsonDocument doc;
         DeserializationError error = deserializeJson(doc, f);
-        f.close();
+        fclose(f);
 
         if (error) {
-            Serial.print("Failed to parse JSON: ");
-            Serial.println(error.c_str());
+            ESP_LOGE(COZY_TAG, "Failed to parse JSON: %s", error.c_str());
             return false;
         }
 
-
-        // Iterate through the JSON object
         for (JsonPair kv: doc.as<JsonObject>()) {
             device d;
             hexStringToBytes(kv.key().c_str(), d._node);
             auto jobj = kv.value().as<JsonObject>();
             d._type = jobj["type"].as<std::string>();
             d._description = jobj["description"].as<std::string>();
-            //     hexStringToBytes(jobj["key"].as<const char*>(), _key);
-            hexStringToBytes(jobj["dst"].as<const char *>() , d._dst);
-            //     uint8_t btmp[2];
-            //     hexStringToBytes(jobj["sequence"].as<const char*>(), btmp);
-            //            /*hexStringToBytes*/(jobj["type"].as<const char*>(), _type);
-            //     _sequence = (btmp[0]<<8)+btmp[1];
-            //     JsonArray jarr = jobj["type"];
-            //     // Iterate through the JSON array
-            //     for (uint8_t i=0; i<jarr.size(); i++)
-            //         _type.insert(_type.begin()+i, jarr[i].as<uint16_t>());
-            //     _manufacturer = jobj["manufacturer_id"].as<uint8_t>();
+            hexStringToBytes(jobj["dst"].as<const char *>(), d._dst);
             devices.push_back(d);
         }
-        Serial.printf("Loaded %d x 2W devices\n", devices.size()); // _type.size());
+        ESP_LOGI(COZY_TAG, "Loaded %d x 2W devices", devices.size());
 
         return true;
     }
 
-    /**
-     * @brief
-     *
-     * @return true
-     * @return false
-     */
     bool iohcCozyDevice2W::save() {
-        fs::File f = LittleFS.open(COZY_2W_FILE, "w");
+        char full_path[512];
+        snprintf(full_path, sizeof(full_path), "%s%s", FS_BASE, COZY_2W_FILE);
 
-        //DynamicJsonDocument doc(1024);
+        FILE *f = fopen(full_path, "w");
+        if (!f) {
+            ESP_LOGE(COZY_TAG, "Failed to open %s for writing", full_path);
+            return false;
+        }
+
         JsonDocument doc;
 
         for (const auto &d: devices) {
@@ -342,24 +326,9 @@ namespace IOHC {
             jobj["dst"] = bytesToHexString(d._dst, sizeof d._dst);
             jobj["type"] = d._type;
             jobj["description"] = d._description;
-
-            //        uint8_t btmp[2];
-            //        btmp[1] = _sequence & 0x00ff;
-            //        btmp[0] = _sequence >> 8;
-            //        jobj["sequence"] = bytesToHexString(btmp, sizeof(btmp));
-
-            //        jobj["_type"] = _type;
-
-            //        JsonArray jarr = jobj.createNestedArray("type");
-            //        for (uint8_t i=0; i<_type.size(); i++)
-            //            if (_type[i])
-            //                jarr.add(_type.at(i));
-            //            else
-            //                break;
-            //        jobj["manufacturer_id"] = _manufacturer;
         }
-        serializeJsonPretty/*serializeJson*/(doc, f);
-        f.close();
+        serializeJsonPretty(doc, f);
+        fclose(f);
 
         return true;
     }
@@ -374,7 +343,6 @@ namespace IOHC {
             0x3c, 0x46, 0x48, 0x4a, 0x4b,
             0x50, 0x52, 0x54, 0x56, 0x60, 0x64, 0x6e, 0x6f, 0x71, 0x73, 0x80, 0x82, 0x84, 0x86, 0x88, 0x8a, 0x8b, 0x8e,
             0x90, 0x92, 0x94, 0x96, 0x98,
-            //Not in firmware 02 0e 25 30 34 3a 3d 58
             0x02, 0x0b, 0x0e, 0x14, 0x16, 0x25, 0x30, 0x34, 0x3a, 0x3d, 0x58
         };
 
