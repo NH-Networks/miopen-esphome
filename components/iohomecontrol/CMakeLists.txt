@@ -19,5 +19,5 @@ idf_component_register(
         "nvs_helpers.cpp"
         "version_info.cpp"
     INCLUDE_DIRS "."
-    REQUIRES "SPI" "arduino-esp32" "esphome"
+    REQUIRES "SPI" "arduino-esp32" "esphome" "LittleFS"
 )

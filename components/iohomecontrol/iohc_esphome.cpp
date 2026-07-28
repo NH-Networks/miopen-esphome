@@ -76,7 +76,7 @@ void IohcGatewayComponent::setup() {
     });
 
     if (!gateway_.begin()) {
-        ESP_LOGE(TAG, "Gateway init mislukt — component als failed gemarkeerd");
+        ESP_LOGE(TAG, "Gateway init mislukt \u2014 component als failed gemarkeerd");
         this->mark_failed();
         if (status_sensor_) status_sensor_->publish_state("Radio init failed");
         return;
@@ -208,9 +208,9 @@ IohcCover* IohcGatewayComponent::get_or_create_cover(
     const std::string object_id_str = "iohc_" + device_id;
 
     auto* cov = new IohcCover(device_id, &gateway_);
-    cov->set_name(entity_name.c_str());
-    cov->set_object_id(object_id_str.c_str());
-    esphome::App.register_cover(cov);
+    cov->set_name(entity_name);
+    cov->set_object_id(object_id_str);
+    esphome::App.register_component(cov);
     covers_[device_id] = cov;
 
     ESP_LOGI(TAG, "Cover geregistreerd: '%s' (id: %s)",
