@@ -9,6 +9,7 @@ esphome:
   build_flags:
     - "-DESP32"
     - "-DRADIO_SX127X"
+    - "-DLILYGO_T3S3"        # REQUIRED: selects correct GPIO map for your board
     - "-DARDUINO_USB_MODE=1"
     - "-DARDUINO_USB_CDC_ON_BOOT=1"
   on_boot:
