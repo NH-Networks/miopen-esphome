@@ -8,7 +8,7 @@ on:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Job 1: ESPHome component compile check
+  # Job 1: ESPHome component compile check (2026.7.2)
   # ---------------------------------------------------------------------------
   esphome-build:
     name: ESPHome compile check
@@ -25,9 +25,19 @@ jobs:
       - name: Install ESPHome
         run: pip install esphome==2026.7.2
 
-      - name: Compile ESPHome component (SX127X)
+      - name: Create dummy secrets.yaml for CI
         run: |
-          esphome compile ci/test_sx127x.yaml
+          cat > secrets.yaml <<'EOF'
+          wifi_ssid: "ci-network"
+          wifi_password: "ci-password"
+          ap_password: "ci-ap-password"
+          api_encryption_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+          ota_password: "ci-ota-password"
+          web_password: "ci-web-password"
+          EOF
+
+      - name: Compile ESPHome firmware (LilyGO T3-S3 SX1276 868)
+        run: esphome compile lilygo-t3s3-sx1276-868.yaml
 
   # ---------------------------------------------------------------------------
   # Job 2: PlatformIO firmware build + release
