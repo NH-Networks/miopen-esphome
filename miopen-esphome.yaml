@@ -6,12 +6,11 @@
 esphome:
   name: iohomecontrol
   friendly_name: io-homecontrol Gateway
-  platformio_options:
-    build_flags:
-      - "-DESP32"
-      - "-DRADIO_SX127X"
-      - "-DARDUINO_USB_MODE=1"
-      - "-DARDUINO_USB_CDC_ON_BOOT=1"
+  build_flags:
+    - "-DESP32"
+    - "-DRADIO_SX127X"
+    - "-DARDUINO_USB_MODE=1"
+    - "-DARDUINO_USB_CDC_ON_BOOT=1"
   on_boot:
     priority: 600
     then:
@@ -161,4 +160,3 @@ cover:
     iohomecontrol_id: iohc_gw
     name: "Test Rolluik"
     device_id: "010203"
-
