@@ -65,6 +65,7 @@ api:
 ota:
   - platform: esphome
     password: !secret ota_password
+  - platform: web_server
 
 # ── Web server (http://iohomecontrol.local) ──────────────────────
 # 2026.7.0 notes:
@@ -78,7 +79,6 @@ web_server:
     username: admin
     password: !secret web_password
     type: digest               # digest keeps password off the network (new in 2026.7)
-  ota: true
   enable_private_network_access: true   # allow LAN browser access
   # allowed_origins:           # uncomment if accessing from another LAN host
   #   - "http://homeassistant.local:8123"
@@ -193,7 +193,7 @@ button:
       then:
         - text.set:
             id: target_device_input
-            value: !lambda 'return id(last_addr_sensor).state;'  # fixed: was id(iohc_gw_last_addr)
+            value: !lambda 'return id(last_addr_sensor).state;'
 
 # ── Tijdsynchronisatie ───────────────────────────────────────────
 time:
